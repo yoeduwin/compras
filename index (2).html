@@ -1,0 +1,2330 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Compras - Ejecutiva Ambiental</title>
+    
+    <!-- Librería jsPDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    
+    <style>
+        /* Estilos generales */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background: #f5f7fa;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, #005600 0%, #2d5f4f 100%);
+            color: white;
+            padding: 1.2rem 2rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header h1 {
+            font-size: 1.8rem;
+            margin-bottom: 0.3rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .header-subtitle {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+
+        /* Contenedor principal */
+        .main-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 1rem;
+        }
+
+        /* Sistema de pestañas */
+        .tabs-container {
+            background: white;
+            border-radius: 10px 10px 0 0;
+            margin-top: 1.5rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            overflow: hidden;
+        }
+
+        .tabs {
+            display: flex;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e0e0e0;
+            overflow-x: auto;
+        }
+
+        .tab {
+            padding: 1rem 1.8rem;
+            cursor: pointer;
+            font-weight: 600;
+            color: #666;
+            white-space: nowrap;
+            transition: all 0.3s;
+            border-bottom: 3px solid transparent;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .tab:hover {
+            background: #edf2f7;
+            color: #005600;
+        }
+
+        .tab.active {
+            background: white;
+            color: #005600;
+            border-bottom-color: #005600;
+        }
+
+        .tab-content {
+            display: none;
+            padding: 2rem;
+            background: white;
+            min-height: 600px;
+            position: relative;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Encabezados de formularios */
+        .form-header {
+            background: #f8f9fa;
+            padding: 1rem 1.5rem;
+            border-left: 4px solid #005600;
+            margin-bottom: 1.5rem;
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .form-header h2 {
+            color: #005600;
+            font-size: 1.4rem;
+        }
+
+        .page-info {
+            background: #e9ecef;
+            padding: 0.4rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #495057;
+        }
+
+        /* Formularios */
+        .form-section {
+            margin-bottom: 2rem;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .section-title {
+            background: #005600;
+            color: white;
+            padding: 0.8rem 1.2rem;
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .form-grid {
+            padding: 1.5rem;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.2rem;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-group.full-width {
+            grid-column: 1 / -1;
+        }
+
+        .form-group label {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: #495057;
+            font-size: 0.9rem;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            padding: 0.7rem;
+            border: 1px solid #ced4da;
+            border-radius: 6px;
+            font-size: 0.95rem;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #005600;
+            box-shadow: 0 0 0 3px rgba(0, 86, 0, 0.1);
+        }
+
+        .form-group textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        /* Tablas */
+        .table-container {
+            overflow-x: auto;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+            margin-top: 1rem;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        th {
+            background: #f8f9fa;
+            padding: 0.8rem;
+            text-align: left;
+            font-weight: 600;
+            color: #495057;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        td {
+            padding: 0.8rem;
+            border-bottom: 1px solid #e9ecef;
+            vertical-align: top;
+        }
+
+        tr:hover {
+            background: #f8f9fa;
+        }
+
+        .item-number {
+            width: 40px;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        /* Botones */
+        .btn {
+            padding: 0.6rem 1.2rem;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.9rem;
+        }
+
+        .btn-primary {
+            background: #005600;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #004400;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #c82333;
+        }
+
+        .btn-add {
+            background: #17a2b8;
+            color: white;
+            margin-top: 1rem;
+        }
+
+        .btn-add:hover {
+            background: #138496;
+        }
+
+        /* Área de botones */
+        .action-buttons {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid #e9ecef;
+            flex-wrap: wrap;
+        }
+
+        /* Footer de documento */
+        .document-footer {
+            margin-top: 3rem;
+            padding-top: 1.5rem;
+            border-top: 2px solid #e9ecef;
+            font-size: 0.8rem;
+            color: #666;
+            text-align: center;
+        }
+
+        .document-footer-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .footer-item {
+            text-align: center;
+        }
+
+        .footer-label {
+            font-weight: bold;
+            color: #005600;
+            margin-bottom: 0.3rem;
+        }
+
+        /* Notificaciones */
+        .toast {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            background: #005600;
+            color: white;
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        /* Logotipo */
+        .logo-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .logo {
+            width: 50px;
+            height: 50px;
+            background: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: #005600;
+            font-size: 1.2rem;
+        }
+
+        /* Notas importantes */
+        .note-box {
+            background: #fff3cd;
+            padding: 1rem;
+            border-radius: 6px;
+            border-left: 4px solid #ffc107;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.4rem;
+            }
+            
+            .tab {
+                padding: 0.8rem 1.2rem;
+                font-size: 0.9rem;
+            }
+            
+            .form-grid {
+                grid-template-columns: 1fr;
+                padding: 1rem;
+            }
+            
+            .tab-content {
+                padding: 1.2rem;
+            }
+            
+            .action-buttons {
+                flex-direction: column;
+            }
+            
+            .btn {
+                width: 100%;
+                justify-content: center;
+            }
+            
+            .document-footer-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Estilos de entrada en tabla */
+        .descripcion-input,
+        .cantidad-input,
+        .precio-input {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+
+        .descripcion-input {
+            min-width: 200px;
+        }
+
+        .cantidad-input,
+        .precio-input {
+            text-align: right;
+        }
+
+        .total-item {
+            font-weight: 600;
+            text-align: right;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <div class="main-container">
+            <div class="logo-header">
+                <div class="logo">EA</div>
+                <div>
+                    <h1>Sistema de Compras y Proveedores</h1>
+                    <div class="header-subtitle">Ejecutiva Ambiental - Control de compras y evaluación de proveedores</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Contenedor principal -->
+    <div class="main-container">
+        <!-- Pestañas -->
+        <div class="tabs-container">
+            <div class="tabs">
+                <div class="tab active" onclick="switchTab('solicitud')">
+                    📋 Solicitud de Compras
+                </div>
+                <div class="tab" onclick="switchTab('orden')">
+                    📄 Orden de Compra
+                </div>
+                <div class="tab" onclick="switchTab('evaluacion')">
+                    ⭐ Evaluación de Proveedor
+                </div>
+                <div class="tab" onclick="switchTab('lista')">
+                    📑 Lista de Proveedores
+                </div>
+            </div>
+
+            <!-- Contenido de pestañas -->
+            
+            <!-- Pestaña 1: Solicitud de Compras -->
+            <div id="tab-solicitud" class="tab-content active">
+                <div class="form-header">
+                    <h2>SOLICITUD DE COMPRAS</h2>
+                    <div class="page-info">EA-FCPS-05.01</div>
+                </div>
+
+                <div class="form-section">
+                    <div class="section-title">Información de la Solicitud</div>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="folio-solicitud">Folio de solicitud</label>
+                            <input type="text" id="folio-solicitud" placeholder="SC-24-001" style="font-weight: bold;">
+                        </div>
+                        <div class="form-group">
+                            <label for="fecha-solicitud">Fecha de solicitud</label>
+                            <input type="date" id="fecha-solicitud">
+                        </div>
+                        <div class="form-group">
+                            <label for="area-solicita">Área que solicita</label>
+                            <select id="area-solicita">
+                                <option value="">Seleccionar área...</option>
+                                <option value="Administración">Administración</option>
+                                <option value="Laboratorio">Laboratorio</option>
+                                <option value="Operaciones">Operaciones</option>
+                                <option value="Calidad">Calidad</option>
+                                <option value="Mantenimiento">Mantenimiento</option>
+                                <option value="Otro">Otro</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <div class="section-title">Descripción de lo solicitado</div>
+                    <div class="form-grid">
+                        <div class="form-group full-width">
+                            <label for="descripcion">Descripción detallada, características técnicas de acuerdo a NOM, etc.</label>
+                            <textarea id="descripcion" placeholder="Describa detalladamente lo que se solicita, incluyendo características técnicas, especificaciones, normas aplicables, etc."></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <div class="section-title">Tipo de Solicitud y Proveedores</div>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="tipo-solicitud">Tipo de solicitud</label>
+                            <select id="tipo-solicitud">
+                                <option value="">Seleccionar tipo...</option>
+                                <option value="Equipamiento">Equipamiento</option>
+                                <option value="Materiales">Materiales</option>
+                                <option value="Servicios">Servicios</option>
+                                <option value="Calibración">Calibración</option>
+                                <option value="Otros">Otros</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="proveedores-sugeridos">Proveedor(es) sugeridos</label>
+                            <input type="text" id="proveedores-sugeridos" placeholder="Nombre del proveedor sugerido">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <div class="section-title">Notas importantes</div>
+                    <div class="form-grid">
+                        <div class="form-group full-width">
+                            <div class="note-box">
+                                <strong>NOTA 1 Calibraciones:</strong> Anexar el alcance del proveedor, y de manera permanente la acreditación vigente, aprobación vigente, magnitud y puntos a calibrar.<br><br>
+                                <strong>NOTA 2 Equipamiento:</strong> Anexar confirmación metrológica del equipo solicitado.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <div class="section-title">Firmas</div>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="solicito">Solicitó</label>
+                            <select id="solicito">
+                                <option value="">Seleccionar...</option>
+                                <option value="Eduardo Campos Sánchez">Eduardo Campos Sánchez</option>
+                                <option value="Martín Luna Córdova">Martín Luna Córdova</option>
+                                <option value="Otro">Otro (escribir abajo)</option>
+                            </select>
+                            <input type="text" id="solicito-otro" placeholder="Escribir nombre si eligió 'Otro'" style="margin-top: 0.5rem; display: none;">
+                            <div style="height: 60px; border-bottom: 1px solid #333; margin-top: 10px;"></div>
+                            <div style="text-align: center; font-size: 0.8rem; margin-top: 5px;">Nombre y firma</div>
+                        </div>
+                        <div class="form-group">
+                            <label for="autorizo-sol">Autorizó</label>
+                            <select id="autorizo-sol">
+                                <option value="">Seleccionar...</option>
+                                <option value="Eduwin Iván Hernández Zárate">Eduwin Iván Hernández Zárate</option>
+                            </select>
+                            <div style="height: 60px; border-bottom: 1px solid #333; margin-top: 10px;"></div>
+                            <div style="text-align: center; font-size: 0.8rem; margin-top: 5px;">Nombre y firma</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Footer del documento -->
+                <div class="document-footer">
+                    <div class="document-footer-grid">
+                        <div class="footer-item">
+                            <div class="footer-label">EMISIÓN</div>
+                            <div>Enero, 2024</div>
+                        </div>
+                        <div class="footer-item">
+                            <div class="footer-label">REVISIÓN</div>
+                            <div>00</div>
+                        </div>
+                        <div class="footer-item">
+                            <div class="footer-label">CÓDIGO</div>
+                            <div>EA-FCPS-05.01</div>
+                        </div>
+                    </div>
+                    <div>Página 1 de 1</div>
+                </div>
+
+                <div class="action-buttons">
+                    <button class="btn btn-success" onclick="generarPDFSolicitud()">
+                        📄 Generar PDF
+                    </button>
+                    <button class="btn btn-secondary" onclick="limpiarFormulario('solicitud')">
+                        🗑️ Limpiar Formulario
+                    </button>
+                </div>
+            </div>
+
+            <!-- Pestaña 2: Orden de Compra -->
+            <div id="tab-orden" class="tab-content">
+                <div class="form-header">
+                    <h2>ORDEN DE COMPRA</h2>
+                    <div class="page-info">EA-FCPS-05.02</div>
+                </div>
+
+                <div class="form-section">
+                    <div class="section-title">Información General</div>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="proveedor">Nombre de proveedor</label>
+                            <input type="text" id="proveedor" placeholder="Nombre del proveedor">
+                        </div>
+                        <div class="form-group">
+                            <label for="num-orden">N° orden de compra</label>
+                            <input type="text" id="num-orden" placeholder="OC-24-001" style="font-weight: bold;">
+                        </div>
+                        <div class="form-group">
+                            <label for="fecha-orden">Fecha</label>
+                            <input type="date" id="fecha-orden">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <div class="section-title">Datos del Cliente</div>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="cliente">Nombre de cliente</label>
+                            <input type="text" id="cliente" value="EJECUTIVA AMBIENTAL" readonly style="background: #e9ecef">
+                        </div>
+                        <div class="form-group">
+                            <label for="telefono">Teléfono</label>
+                            <input type="tel" id="telefono" value="222-941-7295">
+                        </div>
+                        <div class="form-group full-width">
+                            <label for="direccion">Dirección</label>
+                            <input type="text" id="direccion" value="Chipilo 714, Col. La Paz, Puebla, Pue.">
+                        </div>
+                        <div class="form-group">
+                            <label for="correo">Correo</label>
+                            <input type="email" id="correo" value="eduwin.ejecutiva@gmail.com">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <div class="section-title">Artículos / Servicios</div>
+                    <div class="table-container">
+                        <table id="tabla-articulos">
+                            <thead>
+                                <tr>
+                                    <th class="item-number">N°</th>
+                                    <th>Descripción</th>
+                                    <th style="width: 100px;">Cantidad</th>
+                                    <th style="width: 120px;">Precio Unitario</th>
+                                    <th style="width: 120px;">Total</th>
+                                    <th style="width: 50px;"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbody-articulos">
+                                <tr>
+                                    <td class="item-number">1</td>
+                                    <td><input type="text" class="descripcion-input" placeholder="Descripción del artículo o servicio"></td>
+                                    <td><input type="number" class="cantidad-input" min="1" value="1" onchange="calcularTotales()"></td>
+                                    <td><input type="number" class="precio-input" min="0" step="0.01" placeholder="0.00" onchange="calcularTotales()"></td>
+                                    <td class="total-item">$0.00</td>
+                                    <td><button class="btn btn-danger" onclick="eliminarFila(this)" style="padding: 0.3rem 0.6rem;">✕</button></td>
+                                </tr>
+                            </tbody>
+                            <tfoot>
+                                <tr>
+                                    <td colspan="3"></td>
+                                    <td style="text-align: right; font-weight: bold;">SUBTOTAL:</td>
+                                    <td id="subtotal">$0.00</td>
+                                    <td></td>
+                                </tr>
+                                <tr>
+                                    <td colspan="3"></td>
+                                    <td style="text-align: right; font-weight: bold;">IVA (16%):</td>
+                                    <td id="iva">$0.00</td>
+                                    <td></td>
+                                </tr>
+                                <tr>
+                                    <td colspan="3"></td>
+                                    <td style="text-align: right; font-weight: bold;">TOTAL:</td>
+                                    <td id="total" style="font-weight: bold; color: #005600;">$0.00</td>
+                                    <td></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                    <button class="btn btn-add" onclick="agregarFilaArticulo()">
+                        ➕ Agregar Artículo
+                    </button>
+                </div>
+
+                <div class="form-section">
+                    <div class="section-title">Condiciones de Pago</div>
+                    <div class="form-grid">
+                        <div class="form-group full-width">
+                            <label for="condiciones-pago">Especificar condiciones de pago</label>
+                            <textarea id="condiciones-pago" placeholder="Ejemplo: 50% al ordenar, 50% al entregar"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <div class="section-title">Firmas</div>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="realizo">Realizó</label>
+                            <select id="realizo">
+                                <option value="">Seleccionar...</option>
+                                <option value="Eduardo Campos Sánchez">Eduardo Campos Sánchez</option>
+                                <option value="Martín Luna Córdova">Martín Luna Córdova</option>
+                                <option value="Otro">Otro (escribir abajo)</option>
+                            </select>
+                            <input type="text" id="realizo-otro" placeholder="Escribir nombre si eligió 'Otro'" style="margin-top: 0.5rem; display: none;">
+                            <div style="height: 60px; border-bottom: 1px solid #333; margin-top: 10px;"></div>
+                            <div style="text-align: center; font-size: 0.8rem; margin-top: 5px;">Nombre, fecha y firma</div>
+                        </div>
+                        <div class="form-group">
+                            <label for="reviso">Revisó</label>
+                            <select id="reviso">
+                                <option value="">Seleccionar...</option>
+                                <option value="Eduardo Campos Sánchez">Eduardo Campos Sánchez</option>
+                                <option value="Martín Luna Córdova">Martín Luna Córdova</option>
+                                <option value="Otro">Otro (escribir abajo)</option>
+                            </select>
+                            <input type="text" id="reviso-otro" placeholder="Escribir nombre si eligió 'Otro'" style="margin-top: 0.5rem; display: none;">
+                            <div style="height: 60px; border-bottom: 1px solid #333; margin-top: 10px;"></div>
+                            <div style="text-align: center; font-size: 0.8rem; margin-top: 5px;">Nombre, fecha y firma</div>
+                        </div>
+                        <div class="form-group">
+                            <label for="autorizo-orden">Autorizó</label>
+                            <select id="autorizo-orden">
+                                <option value="">Seleccionar...</option>
+                                <option value="Eduwin Iván Hernández Zárate">Eduwin Iván Hernández Zárate</option>
+                            </select>
+                            <div style="height: 60px; border-bottom: 1px solid #333; margin-top: 10px;"></div>
+                            <div style="text-align: center; font-size: 0.8rem; margin-top: 5px;">Nombre, fecha y firma</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Footer del documento -->
+                <div class="document-footer">
+                    <div class="document-footer-grid">
+                        <div class="footer-item">
+                            <div class="footer-label">EMISIÓN</div>
+                            <div>Enero, 2024</div>
+                        </div>
+                        <div class="footer-item">
+                            <div class="footer-label">REVISIÓN</div>
+                            <div>00</div>
+                        </div>
+                        <div class="footer-item">
+                            <div class="footer-label">CÓDIGO</div>
+                            <div>EA-FCPS-05.02</div>
+                        </div>
+                    </div>
+                    <div>Página 1 de 1</div>
+                </div>
+
+                <div class="action-buttons">
+                    <button class="btn btn-success" onclick="generarPDFOrden()">
+                        📄 Generar PDF
+                    </button>
+                    <button class="btn btn-secondary" onclick="limpiarFormulario('orden')">
+                        🗑️ Limpiar Formulario
+                    </button>
+                </div>
+            </div>
+
+            <!-- Pestaña 3: Evaluación de Proveedor -->
+            <div id="tab-evaluacion" class="tab-content">
+                <div class="form-header">
+                    <h2>EVALUACIÓN DE PROVEEDOR</h2>
+                    <div class="page-info">EA-FCPS-05.03</div>
+                </div>
+
+                <div class="form-section">
+                    <div class="section-title">Proveedor a Evaluar</div>
+                    <div class="form-grid">
+                        <div class="form-group full-width">
+                            <label for="proveedor-eval">Proveedor</label>
+                            <input type="text" id="proveedor-eval" placeholder="Nombre del proveedor a evaluar">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <div class="section-title">Instrucciones</div>
+                    <div class="form-grid">
+                        <div class="form-group full-width">
+                            <div style="background: #f8f9fa; padding: 1rem; border-radius: 6px; font-size: 0.85rem;">
+                                <strong>COLOCAR LA OPCIÓN CORRESPONDIENTE, DONDE LA CALIFICACIÓN SIGNIFICA:</strong><br>
+                                EXCELENTE = 10 | MUY BUENO = 8 | BUENO = 6 | REGULAR = 4 | MALO = 2
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <div class="section-title" style="background: #005600;">COTIZACIÓN</div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th style="width: 60%;">Criterio</th>
+                                    <th style="width: 15%;">Calificación</th>
+                                    <th style="width: 25%;">Comentarios</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Entrega de cotización (Máximo 48 h)</td>
+                                    <td><input type="number" class="calificacion-input" min="0" max="10" step="2" placeholder="0" style="width: 100%; padding: 0.5rem; text-align: center;"></td>
+                                    <td rowspan="6"><textarea id="comentarios-cotizacion" style="width: 100%; height: 150px; border: 1px solid #ced4da; border-radius: 4px; padding: 0.5rem;"></textarea></td>
+                                </tr>
+                                <tr>
+                                    <td>Es clara en términos</td>
+                                    <td><input type="number" class="calificacion-input" min="0" max="10" step="2" placeholder="0" style="width: 100%; padding: 0.5rem; text-align: center;"></td>
+                                </tr>
+                                <tr>
+                                    <td>Costo competitivo</td>
+                                    <td><input type="number" class="calificacion-input" min="0" max="10" step="2" placeholder="0" style="width: 100%; padding: 0.5rem; text-align: center;"></td>
+                                </tr>
+                                <tr>
+                                    <td>Aclaración de dudas</td>
+                                    <td><input type="number" class="calificacion-input" min="0" max="10" step="2" placeholder="0" style="width: 100%; padding: 0.5rem; text-align: center;"></td>
+                                </tr>
+                                <tr>
+                                    <td>Tiempo entrega señalado de acuerdo al servicio</td>
+                                    <td><input type="number" class="calificacion-input" min="0" max="10" step="2" placeholder="0" style="width: 100%; padding: 0.5rem; text-align: center;"></td>
+                                </tr>
+                                <tr>
+                                    <td>Entrega el producto o servicio en las instalaciones en tiempo y forma</td>
+                                    <td><input type="number" class="calificacion-input" min="0" max="10" step="2" placeholder="0" style="width: 100%; padding: 0.5rem; text-align: center;"></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <div class="section-title" style="background: #005600;">EQUIPOS</div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th style="width: 60%;">Criterio</th>
+                                    <th style="width: 15%;">Calificación</th>
+                                    <th style="width: 25%;">Comentarios</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Cumple con el tiempo de entrega pactado</td>
+                                    <td><input type="number" class="calificacion-input" min="0" max="10" step="2" placeholder="0" style="width: 100%; padding: 0.5rem; text-align: center;"></td>
+                                    <td rowspan="5"><textarea id="comentarios-equipos" style="width: 100%; height: 120px; border: 1px solid #ced4da; border-radius: 4px; padding: 0.5rem;"></textarea></td>
+                                </tr>
+                                <tr>
+                                    <td>Cumple con la exactitud</td>
+                                    <td><input type="number" class="calificacion-input" min="0" max="10" step="2" placeholder="0" style="width: 100%; padding: 0.5rem; text-align: center;"></td>
+                                </tr>
+                                <tr>
+                                    <td>Cumple con la precisión</td>
+                                    <td><input type="number" class="calificacion-input" min="0" max="10" step="2" placeholder="0" style="width: 100%; padding: 0.5rem; text-align: center;"></td>
+                                </tr>
+                                <tr>
+                                    <td>Otorga capacitación sobre el uso (si aplica)</td>
+                                    <td><input type="number" class="calificacion-input" min="0" max="10" step="2" placeholder="0" style="width: 100%; padding: 0.5rem; text-align: center;"></td>
+                                </tr>
+                                <tr>
+                                    <td>Entrega manual de uso en español, software y/o accesorios</td>
+                                    <td><input type="number" class="calificacion-input" min="0" max="10" step="2" placeholder="0" style="width: 100%; padding: 0.5rem; text-align: center;"></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <div class="section-title" style="background: #005600;">CALIBRACIÓN</div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th style="width: 60%;">Criterio</th>
+                                    <th style="width: 15%;">Calificación</th>
+                                    <th style="width: 25%;">Comentarios</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Envía copia de acreditación, aprobación, carta de trazabilidad</td>
+                                    <td><input type="number" class="calificacion-input" min="0" max="10" step="2" placeholder="0" style="width: 100%; padding: 0.5rem; text-align: center;"></td>
+                                    <td rowspan="5"><textarea id="comentarios-calibracion" style="width: 100%; height: 120px; border: 1px solid #ced4da; border-radius: 4px; padding: 0.5rem;"></textarea></td>
+                                </tr>
+                                <tr>
+                                    <td>Coloca datos correctos (Nombre, inventario, razón social, etcétera)</td>
+                                    <td><input type="number" class="calificacion-input" min="0" max="10" step="2" placeholder="0" style="width: 100%; padding: 0.5rem; text-align: center;"></td>
+                                </tr>
+                                <tr>
+                                    <td>Coloca datos de calibración correctos con firma por personal autorizado</td>
+                                    <td><input type="number" class="calificacion-input" min="0" max="10" step="2" placeholder="0" style="width: 100%; padding: 0.5rem; text-align: center;"></td>
+                                </tr>
+                                <tr>
+                                    <td>Envía o entrega equipo calibrado con excelente presentación y cuidado</td>
+                                    <td><input type="number" class="calificacion-input" min="0" max="10" step="2" placeholder="0" style="width: 100%; padding: 0.5rem; text-align: center;"></td>
+                                </tr>
+                                <tr>
+                                    <td>Envía documentación en tiempo y forma, aclara si es digital o en físico</td>
+                                    <td><input type="number" class="calificacion-input" min="0" max="10" step="2" placeholder="0" style="width: 100%; padding: 0.5rem; text-align: center;"></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <div class="section-title">Resultados</div>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="calificacion-final">Calificación Final</label>
+                            <input type="text" id="calificacion-final" readonly style="background: #e9ecef; font-weight: bold; font-size: 1.2rem; text-align: center;">
+                        </div>
+                        <div class="form-group">
+                            <label for="conclusion">Conclusión</label>
+                            <select id="conclusion">
+                                <option value="">Seleccionar...</option>
+                                <option value="Excelente">Excelente</option>
+                                <option value="Muy Bueno">Muy Bueno</option>
+                                <option value="Bueno">Bueno</option>
+                                <option value="Regular">Regular</option>
+                                <option value="No Apto">No Apto</option>
+                            </select>
+                        </div>
+                        <div class="form-group full-width">
+                            <div style="background: #fff3cd; padding: 1rem; border-radius: 6px; border-left: 4px solid #ffc107; font-size: 0.85rem;">
+                                <strong>La presente evaluación es de carácter CONFIDENCIAL</strong> y tiene el propósito de conocer en forma general la calidad del servicio y/o capacidad con que cuenta el proveedor para cumplir el servicio acordado.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <div class="section-title">Firmas</div>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="elaboro-eval">Elaboró</label>
+                            <select id="elaboro-eval">
+                                <option value="">Seleccionar...</option>
+                                <option value="Eduardo Campos Sánchez">Eduardo Campos Sánchez</option>
+                                <option value="Martín Luna Córdova">Martín Luna Córdova</option>
+                            </select>
+                            <div style="height: 60px; border-bottom: 1px solid #333; margin-top: 10px;"></div>
+                            <div style="text-align: center; font-size: 0.8rem; margin-top: 5px;">Nombre y firma</div>
+                        </div>
+                        <div class="form-group">
+                            <label for="reviso-eval">Revisó y autorizó</label>
+                            <select id="reviso-eval">
+                                <option value="">Seleccionar...</option>
+                                <option value="Eduwin Iván Hernández Zárate">Eduwin Iván Hernández Zárate</option>
+                            </select>
+                            <div style="height: 60px; border-bottom: 1px solid #333; margin-top: 10px;"></div>
+                            <div style="text-align: center; font-size: 0.8rem; margin-top: 5px;">Nombre y firma</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="document-footer">
+                    <div class="document-footer-grid">
+                        <div class="footer-item">
+                            <div class="footer-label">EMISIÓN</div>
+                            <div>Enero, 2024</div>
+                        </div>
+                        <div class="footer-item">
+                            <div class="footer-label">REVISIÓN</div>
+                            <div>00</div>
+                        </div>
+                        <div class="footer-item">
+                            <div class="footer-label">CÓDIGO</div>
+                            <div>EA-FCPS-05.03</div>
+                        </div>
+                    </div>
+                    <div>Página 1 de 1</div>
+                </div>
+
+                <div class="action-buttons">
+                    <button class="btn btn-primary" onclick="calcularCalificacion()">
+                        🧮 Calcular Calificación
+                    </button>
+                    <button class="btn btn-success" onclick="generarPDFEvaluacion()">
+                        📄 Generar PDF
+                    </button>
+                    <button class="btn btn-secondary" onclick="limpiarFormulario('evaluacion')">
+                        🗑️ Limpiar Formulario
+                    </button>
+                </div>
+            </div>
+
+            <!-- Pestaña 4: Lista de Proveedores Confiables -->
+            <div id="tab-lista" class="tab-content">
+                <div class="form-header">
+                    <h2>LISTA DE PROVEEDORES CONFIABLES</h2>
+                    <div class="page-info">EA-FCPS-05.04</div>
+                </div>
+
+                <div class="search-box">
+                    <input type="text" id="buscar-proveedor" placeholder="🔍 Buscar proveedor..." onkeyup="filtrarProveedores()">
+                </div>
+
+                <div class="table-container">
+                    <table id="tabla-proveedores">
+                        <thead>
+                            <tr>
+                                <th style="width: 40px;">N°</th>
+                                <th>Nombre del proveedor</th>
+                                <th>Servicio(s) que provee</th>
+                                <th style="width: 100px;">Ingreso a lista</th>
+                                <th>Dirección</th>
+                                <th>Número</th>
+                                <th>Correo</th>
+                                <th style="width: 80px;">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-proveedores">
+                            <tr>
+                                <td colspan="8" style="text-align: center; padding: 2rem; color: #999;">
+                                    No hay proveedores registrados. Use el formulario de abajo para agregar proveedores.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="form-section" style="margin-top: 2rem;">
+                    <div class="section-title">Agregar Nuevo Proveedor</div>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="nuevo-nombre">Nombre del proveedor</label>
+                            <input type="text" id="nuevo-nombre" placeholder="Nombre completo">
+                        </div>
+                        <div class="form-group">
+                            <label for="nuevo-servicio">Servicio(s) que provee</label>
+                            <input type="text" id="nuevo-servicio" placeholder="Ej: Calibración, Equipos">
+                        </div>
+                        <div class="form-group">
+                            <label for="nuevo-ingreso">Ingreso a lista</label>
+                            <input type="date" id="nuevo-ingreso">
+                        </div>
+                        <div class="form-group full-width">
+                            <label for="nuevo-direccion">Dirección</label>
+                            <input type="text" id="nuevo-direccion" placeholder="Dirección completa">
+                        </div>
+                        <div class="form-group">
+                            <label for="nuevo-numero">Número de contacto</label>
+                            <input type="tel" id="nuevo-numero" placeholder="Teléfono">
+                        </div>
+                        <div class="form-group">
+                            <label for="nuevo-correo">Correo electrónico</label>
+                            <input type="email" id="nuevo-correo" placeholder="correo@ejemplo.com">
+                        </div>
+                    </div>
+                    <button class="btn btn-add" onclick="agregarProveedor()">
+                        ➕ Agregar Proveedor a la Lista
+                    </button>
+                </div>
+
+                <div class="form-section">
+                    <div class="section-title">Firmas</div>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="realizo-lista">Realizó</label>
+                            <input type="text" id="realizo-lista" placeholder="Nombre">
+                            <div style="height: 60px; border-bottom: 1px solid #333; margin-top: 10px;"></div>
+                            <div style="text-align: center; font-size: 0.8rem; margin-top: 5px;">Nombre, fecha y firma</div>
+                        </div>
+                        <div class="form-group">
+                            <label for="reviso-lista">Revisó y autorizó</label>
+                            <input type="text" id="reviso-lista" placeholder="Nombre">
+                            <div style="height: 60px; border-bottom: 1px solid #333; margin-top: 10px;"></div>
+                            <div style="text-align: center; font-size: 0.8rem; margin-top: 5px;">Nombre, fecha y firma</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="document-footer">
+                    <div class="document-footer-grid">
+                        <div class="footer-item">
+                            <div class="footer-label">EMISIÓN</div>
+                            <div>Enero, 2024</div>
+                        </div>
+                        <div class="footer-item">
+                            <div class="footer-label">REVISIÓN</div>
+                            <div>00</div>
+                        </div>
+                        <div class="footer-item">
+                            <div class="footer-label">CÓDIGO</div>
+                            <div>EA-FCPS-05.04</div>
+                        </div>
+                    </div>
+                    <div>Página 1 de 1</div>
+                </div>
+
+                <div class="action-buttons">
+                    <button class="btn btn-success" onclick="generarPDFLista()">
+                        📄 Generar PDF
+                    </button>
+                    <button class="btn btn-secondary" onclick="limpiarFormulario('lista')">
+                        🗑️ Limpiar Formulario
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast para notificaciones -->
+    <div id="toast" class="toast" style="display: none;"></div>
+
+    <script>
+        // ============================================
+        // VARIABLES GLOBALES
+        // ============================================
+        
+        let contadorArticulos = 1;
+        let contadorFolioSolicitud = 1;
+        let contadorFolioOrden = 1;
+        let logoBase64 = null;
+
+        // ============================================
+        // FUNCIONES GENERALES
+        // ============================================
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+            
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            const tabElements = document.querySelectorAll('.tab');
+            tabElements.forEach(tab => {
+                if (tab.textContent.includes(getTabTitle(tabName))) {
+                    tab.classList.add('active');
+                }
+            });
+        }
+
+        function getTabTitle(tabName) {
+            const titles = {
+                'solicitud': 'Solicitud de Compras',
+                'orden': 'Orden de Compra',
+                'evaluacion': 'Evaluación de Proveedor',
+                'lista': 'Lista de Proveedores'
+            };
+            return titles[tabName] || '';
+        }
+
+        function generarFolio(tipo) {
+            const año = new Date().getFullYear().toString().slice(-2);
+            let numero;
+            
+            if (tipo === 'solicitud') {
+                numero = contadorFolioSolicitud.toString().padStart(3, '0');
+                contadorFolioSolicitud++;
+                return `SC-${año}-${numero}`;
+            } else {
+                numero = contadorFolioOrden.toString().padStart(3, '0');
+                contadorFolioOrden++;
+                return `OC-${año}-${numero}`;
+            }
+        }
+
+        function showToast(mensaje, tipo = 'info') {
+            const toast = document.getElementById('toast');
+            toast.textContent = mensaje;
+            
+            const colores = {
+                'success': '#28a745',
+                'error': '#dc3545',
+                'warning': '#ffc107',
+                'info': '#005600'
+            };
+            
+            toast.style.background = colores[tipo] || colores.info;
+            toast.style.display = 'block';
+            
+            setTimeout(() => {
+                toast.style.display = 'none';
+            }, 3000);
+        }
+
+        function formatearFecha(fechaStr) {
+            if (!fechaStr) return '';
+            const fecha = new Date(fechaStr);
+            const opciones = { year: 'numeric', month: 'long', day: 'numeric' };
+            return fecha.toLocaleDateString('es-MX', opciones);
+        }
+
+        // Manejar selects con opción "Otro"
+        function setupOtroHandlers() {
+            const pairs = [
+                ['solicito', 'solicito-otro'],
+                ['realizo', 'realizo-otro'],
+                ['reviso', 'reviso-otro']
+            ];
+            
+            pairs.forEach(([selectId, inputId]) => {
+                const select = document.getElementById(selectId);
+                const input = document.getElementById(inputId);
+                
+                if (select && input) {
+                    select.addEventListener('change', function() {
+                        if (this.value === 'Otro') {
+                            input.style.display = 'block';
+                        } else {
+                            input.style.display = 'none';
+                            input.value = '';
+                        }
+                    });
+                }
+            });
+        }
+
+        function getNombreFromSelect(selectId, otroId) {
+            const select = document.getElementById(selectId);
+            const otro = document.getElementById(otroId);
+            
+            if (select.value === 'Otro' && otro) {
+                return otro.value || 'N/A';
+            }
+            return select.value || 'N/A';
+        }
+
+        // ============================================
+        // FUNCIONES PARA SOLICITUD DE COMPRAS
+        // ============================================
+
+        function generarPDFSolicitud() {
+            const folio = document.getElementById('folio-solicitud').value;
+            const fecha = document.getElementById('fecha-solicitud').value;
+            const area = document.getElementById('area-solicita').value;
+            const descripcion = document.getElementById('descripcion').value;
+            const tipo = document.getElementById('tipo-solicitud').value;
+            const proveedores = document.getElementById('proveedores-sugeridos').value;
+            const solicito = getNombreFromSelect('solicito', 'solicito-otro');
+            const autorizo = document.getElementById('autorizo-sol').value;
+            
+            if (!fecha || !area || !descripcion) {
+                showToast('Complete los campos obligatorios', 'error');
+                return;
+            }
+            
+            showToast('Generando PDF...', 'info');
+            
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF('p', 'mm', 'letter');
+            
+            const margin = 20;
+            let y = margin;
+            const lineHeight = 5;
+            const pageWidth = 215.9;
+            const maxWidth = pageWidth - (margin * 2);
+            const verdeEA = [0, 86, 0];
+            
+            // LOGO (si está disponible)
+            if (logoBase64) {
+                try {
+                    pdf.addImage(logoBase64, 'PNG', margin, y, 35, 12);
+                } catch(e) {
+                    console.log('Logo no disponible');
+                }
+            }
+            
+            // TÍTULO en la esquina superior derecha
+            pdf.setFontSize(11);
+            pdf.setFont('helvetica', 'bold');
+            pdf.text('SOLICITUD DE COMPRAS', pageWidth - margin, y + 4, { align: 'right' });
+            y += 6;
+            
+            pdf.setFontSize(8);
+            pdf.setFont('helvetica', 'normal');
+            pdf.text('EA-FCPS-05.01', pageWidth - margin, y + 2, { align: 'right' });
+            
+            y = margin + 18;
+            
+            // Tabla verde con campos principales
+            pdf.setFillColor(verdeEA[0], verdeEA[1], verdeEA[2]);
+            pdf.setDrawColor(verdeEA[0], verdeEA[1], verdeEA[2]);
+            
+            // Folio de solicitud
+            pdf.rect(margin, y, 60, 7, 'F');
+            pdf.setTextColor(255, 255, 255);
+            pdf.setFontSize(9);
+            pdf.setFont('helvetica', 'bold');
+            pdf.text('Folio de solicitud', margin + 2, y + 5);
+            pdf.setTextColor(0, 0, 0);
+            pdf.setDrawColor(0, 0, 0);
+            pdf.rect(margin + 60, y, maxWidth - 60, 7);
+            pdf.setFont('helvetica', 'normal');
+            pdf.text(folio, margin + 62, y + 5);
+            y += 7;
+            
+            // Fecha de solicitud
+            pdf.setFillColor(verdeEA[0], verdeEA[1], verdeEA[2]);
+            pdf.setDrawColor(verdeEA[0], verdeEA[1], verdeEA[2]);
+            pdf.rect(margin, y, 60, 7, 'F');
+            pdf.setTextColor(255, 255, 255);
+            pdf.setFont('helvetica', 'bold');
+            pdf.text('Fecha de solicitud', margin + 2, y + 5);
+            pdf.setTextColor(0, 0, 0);
+            pdf.setDrawColor(0, 0, 0);
+            pdf.rect(margin + 60, y, maxWidth - 60, 7);
+            pdf.setFont('helvetica', 'normal');
+            pdf.text(formatearFecha(fecha), margin + 62, y + 5);
+            y += 7;
+            
+            // Área que solicita
+            pdf.setFillColor(verdeEA[0], verdeEA[1], verdeEA[2]);
+            pdf.setDrawColor(verdeEA[0], verdeEA[1], verdeEA[2]);
+            pdf.rect(margin, y, 60, 7, 'F');
+            pdf.setTextColor(255, 255, 255);
+            pdf.setFont('helvetica', 'bold');
+            pdf.text('Área que solicita', margin + 2, y + 5);
+            pdf.setTextColor(0, 0, 0);
+            pdf.setDrawColor(0, 0, 0);
+            pdf.rect(margin + 60, y, maxWidth - 60, 7);
+            pdf.setFont('helvetica', 'normal');
+            pdf.text(area, margin + 62, y + 5);
+            y += 10;
+            
+            // Segunda tabla: Tipo, Descripción, Proveedor
+            const col1Width = 45;
+            const col2Width = 80;
+            const col3Width = maxWidth - col1Width - col2Width;
+            
+            // Encabezados
+            pdf.setFillColor(verdeEA[0], verdeEA[1], verdeEA[2]);
+            pdf.setDrawColor(verdeEA[0], verdeEA[1], verdeEA[2]);
+            pdf.rect(margin, y, col1Width, 10, 'F');
+            pdf.rect(margin + col1Width, y, col2Width, 10, 'F');
+            pdf.rect(margin + col1Width + col2Width, y, col3Width, 10, 'F');
+            
+            pdf.setTextColor(255, 255, 255);
+            pdf.setFont('helvetica', 'bold');
+            pdf.setFontSize(8);
+            const texto1 = pdf.splitTextToSize('Tipo de solicitud', col1Width - 4);
+            pdf.text(texto1, margin + col1Width/2, y + 6, { align: 'center' });
+            
+            const texto2 = pdf.splitTextToSize('Descripción de lo solicitado, sus características técnicas de acuerdo a NOM, etc.', col2Width - 4);
+            pdf.text(texto2, margin + col1Width + col2Width/2, y + 6, { align: 'center' });
+            
+            const texto3 = pdf.splitTextToSize('Proveedor (es) sugeridos', col3Width - 4);
+            pdf.text(texto3, margin + col1Width + col2Width + col3Width/2, y + 6, { align: 'center' });
+            
+            y += 10;
+            
+            // Contenido de la tabla
+            pdf.setTextColor(0, 0, 0);
+            pdf.setFont('helvetica', 'normal');
+            pdf.setDrawColor(0, 0, 0);
+            
+            const alturaCelda = 50;
+            pdf.rect(margin, y, col1Width, alturaCelda);
+            pdf.rect(margin + col1Width, y, col2Width, alturaCelda);
+            pdf.rect(margin + col1Width + col2Width, y, col3Width, alturaCelda);
+            
+            // Tipo
+            pdf.text(tipo || '', margin + 2, y + 5);
+            
+            // Descripción
+            const descLines = pdf.splitTextToSize(descripcion || '', col2Width - 4);
+            pdf.text(descLines, margin + col1Width + 2, y + 5);
+            
+            // Proveedores
+            const provLines = pdf.splitTextToSize(proveedores || '', col3Width - 4);
+            pdf.text(provLines, margin + col1Width + col2Width + 2, y + 5);
+            
+            y += alturaCelda + 5;
+            
+            // Nota importante
+            pdf.setFontSize(7);
+            pdf.setFont('helvetica', 'normal');
+            const notaTexto = 'Es importante resaltar que si se autoriza el inicio de este proceso, se debe tomar en cuenta el anexar la información de NOTA 1 y NOTA 2';
+            const notaLines = pdf.splitTextToSize(notaTexto, maxWidth);
+            pdf.text(notaLines, margin, y);
+            y += notaLines.length * 3 + 3;
+            
+            pdf.setFont('helvetica', 'bold');
+            pdf.text('NOTA 1 Calibraciones.', margin, y);
+            pdf.setFont('helvetica', 'normal');
+            const nota1Texto = ' Anexar el alcance del proveedor, y de manera permanente la acreditación vigente, aprobación vigente, magnitud y puntos a calibrar.';
+            const nota1Lines = pdf.splitTextToSize(nota1Texto, maxWidth - 35);
+            pdf.text(nota1Lines, margin + 35, y);
+            y += nota1Lines.length * 3 + 3;
+            
+            pdf.setFont('helvetica', 'bold');
+            pdf.text('NOTA 2 Equipamiento.', margin, y);
+            pdf.setFont('helvetica', 'normal');
+            const nota2Texto = ' Anexar confirmación metrológica del equipo solicitado.';
+            pdf.text(nota2Texto, margin + 35, y);
+            y += 8;
+            
+            // FIRMAS
+            const anchoFirma = (maxWidth - 10) / 2;
+            const xFirma1 = margin;
+            const xFirma2 = margin + anchoFirma + 10;
+            
+            // Solicitó
+            pdf.setFillColor(verdeEA[0], verdeEA[1], verdeEA[2]);
+            pdf.setDrawColor(verdeEA[0], verdeEA[1], verdeEA[2]);
+            pdf.rect(xFirma1, y, anchoFirma, 7, 'F');
+            pdf.setTextColor(255, 255, 255);
+            pdf.setFontSize(9);
+            pdf.setFont('helvetica', 'bold');
+            pdf.text('Solicitó', xFirma1 + anchoFirma/2, y + 5, { align: 'center' });
+            
+            pdf.setTextColor(0, 0, 0);
+            pdf.setDrawColor(0, 0, 0);
+            pdf.rect(xFirma1, y + 7, anchoFirma, 20);
+            pdf.setFont('helvetica', 'normal');
+            pdf.setFontSize(8);
+            pdf.text(solicito, xFirma1 + anchoFirma/2, y + 18, { align: 'center' });
+            pdf.setFontSize(7);
+            pdf.text('Nombre y firma', xFirma1 + anchoFirma/2, y + 24, { align: 'center' });
+            
+            // Autorizó
+            pdf.setFillColor(verdeEA[0], verdeEA[1], verdeEA[2]);
+            pdf.setDrawColor(verdeEA[0], verdeEA[1], verdeEA[2]);
+            pdf.rect(xFirma2, y, anchoFirma, 7, 'F');
+            pdf.setTextColor(255, 255, 255);
+            pdf.setFontSize(9);
+            pdf.setFont('helvetica', 'bold');
+            pdf.text('Autorizó', xFirma2 + anchoFirma/2, y + 5, { align: 'center' });
+            
+            pdf.setTextColor(0, 0, 0);
+            pdf.setDrawColor(0, 0, 0);
+            pdf.rect(xFirma2, y + 7, anchoFirma, 20);
+            pdf.setFont('helvetica', 'normal');
+            pdf.setFontSize(8);
+            pdf.text(autorizo, xFirma2 + anchoFirma/2, y + 18, { align: 'center' });
+            pdf.setFontSize(7);
+            pdf.text('Nombre y firma', xFirma2 + anchoFirma/2, y + 24, { align: 'center' });
+            
+            // PIE DE PÁGINA
+            const footerY = 265;
+            pdf.setFontSize(7);
+            pdf.setFont('helvetica', 'bold');
+            pdf.setTextColor(0, 0, 0);
+            
+            pdf.text('EMISIÓN:', margin, footerY);
+            pdf.setFont('helvetica', 'normal');
+            pdf.text('ENERO, 2024', margin, footerY + 3);
+            
+            pdf.setFont('helvetica', 'bold');
+            pdf.text('REVISIÓN:', pageWidth/2 - 10, footerY);
+            pdf.setFont('helvetica', 'normal');
+            pdf.text('00', pageWidth/2 - 10, footerY + 3);
+            
+            pdf.setFont('helvetica', 'bold');
+            pdf.text('CÓDIGO:', pageWidth - margin - 30, footerY);
+            pdf.setFont('helvetica', 'normal');
+            pdf.text('EA-FCPS-05.01', pageWidth - margin - 30, footerY + 3);
+            
+            pdf.save(`Solicitud_Compra_${folio}.pdf`);
+            showToast('PDF generado correctamente', 'success');
+        }
+
+        // ============================================
+        // FUNCIONES PARA ORDEN DE COMPRA
+        // ============================================
+
+        function agregarFilaArticulo() {
+            contadorArticulos++;
+            const tbody = document.getElementById('tbody-articulos');
+            const nuevaFila = document.createElement('tr');
+            
+            nuevaFila.innerHTML = `
+                <td class="item-number">${contadorArticulos}</td>
+                <td><input type="text" class="descripcion-input" placeholder="Descripción del artículo o servicio"></td>
+                <td><input type="number" class="cantidad-input" min="1" value="1" onchange="calcularTotales()"></td>
+                <td><input type="number" class="precio-input" min="0" step="0.01" placeholder="0.00" onchange="calcularTotales()"></td>
+                <td class="total-item">$0.00</td>
+                <td><button class="btn btn-danger" onclick="eliminarFila(this)" style="padding: 0.3rem 0.6rem;">✕</button></td>
+            `;
+            
+            tbody.appendChild(nuevaFila);
+            calcularTotales();
+        }
+
+        function eliminarFila(boton) {
+            const fila = boton.closest('tr');
+            if (document.querySelectorAll('#tbody-articulos tr').length > 1) {
+                fila.remove();
+                recalcularNumeros();
+                calcularTotales();
+            } else {
+                showToast('Debe haber al menos un artículo', 'error');
+            }
+        }
+
+        function recalcularNumeros() {
+            const filas = document.querySelectorAll('#tbody-articulos tr');
+            filas.forEach((fila, index) => {
+                fila.querySelector('.item-number').textContent = index + 1;
+            });
+            contadorArticulos = filas.length;
+        }
+
+        function calcularTotales() {
+            let subtotal = 0;
+            const filas = document.querySelectorAll('#tbody-articulos tr');
+            
+            filas.forEach(fila => {
+                const cantidad = parseFloat(fila.querySelector('.cantidad-input').value) || 0;
+                const precio = parseFloat(fila.querySelector('.precio-input').value) || 0;
+                const total = cantidad * precio;
+                
+                fila.querySelector('.total-item').textContent = `$${total.toFixed(2)}`;
+                subtotal += total;
+            });
+            
+            const iva = subtotal * 0.16;
+            const total = subtotal + iva;
+            
+            document.getElementById('subtotal').textContent = `$${subtotal.toFixed(2)}`;
+            document.getElementById('iva').textContent = `$${iva.toFixed(2)}`;
+            document.getElementById('total').textContent = `$${total.toFixed(2)}`;
+        }
+
+        function generarPDFOrden() {
+            const numOrden = document.getElementById('num-orden').value;
+            const proveedor = document.getElementById('proveedor').value;
+            const fecha = document.getElementById('fecha-orden').value;
+            
+            if (!proveedor || !fecha) {
+                showToast('Complete los campos obligatorios', 'error');
+                return;
+            }
+            
+            showToast('Generando PDF...', 'info');
+            
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF('p', 'mm', 'letter');
+            
+            const margin = 20;
+            let y = margin;
+            const lineHeight = 5;
+            const pageWidth = 215.9;
+            const maxWidth = pageWidth - (margin * 2);
+            const verdeEA = [0, 86, 0];
+            
+            // TÍTULO en la esquina superior derecha
+            pdf.setFontSize(14);
+            pdf.setFont('helvetica', 'bold');
+            pdf.setTextColor(144, 238, 144); // Verde claro
+            pdf.text('ORDEN DE COMPRA', pageWidth - margin, y, { align: 'right' });
+            y += 6;
+            
+            pdf.setFontSize(8);
+            pdf.setFont('helvetica', 'normal');
+            pdf.setTextColor(0, 0, 0);
+            pdf.text('EA-FCPS-05.02', pageWidth - margin, y, { align: 'right' });
+            
+            y = margin + 15;
+            
+            // NOMBRE DE PROVEEDOR
+            const col1 = 100;
+            const col2 = maxWidth - col1;
+            
+            pdf.setFillColor(verdeEA[0], verdeEA[1], verdeEA[2]);
+            pdf.setDrawColor(verdeEA[0], verdeEA[1], verdeEA[2]);
+            pdf.rect(margin, y, col1, 7, 'F');
+            pdf.setTextColor(255, 255, 255);
+            pdf.setFontSize(9);
+            pdf.setFont('helvetica', 'bold');
+            pdf.text('NOMBRE DE PROVEEDOR', margin + 2, y + 5);
+            
+            // N° orden y Fecha
+            pdf.rect(margin + col1, y, col2, 7, 'F');
+            pdf.text('N° orden de compra', margin + col1 + 2, y + 5);
+            
+            // Valores
+            pdf.setTextColor(0, 0, 0);
+            pdf.setDrawColor(0, 0, 0);
+            pdf.rect(margin, y + 7, col1, 7);
+            pdf.setFont('helvetica', 'normal');
+            pdf.text(proveedor, margin + 2, y + 12);
+            
+            pdf.rect(margin + col1, y + 7, col2, 7);
+            pdf.text(numOrden, margin + col1 + 2, y + 12);
+            
+            y += 14;
+            
+            // Fecha
+            pdf.setFillColor(verdeEA[0], verdeEA[1], verdeEA[2]);
+            pdf.setDrawColor(verdeEA[0], verdeEA[1], verdeEA[2]);
+            pdf.rect(margin + col1, y, col2, 7, 'F');
+            pdf.setTextColor(255, 255, 255);
+            pdf.setFont('helvetica', 'bold');
+            pdf.text('Fecha', margin + col1 + 2, y + 5);
+            
+            pdf.setTextColor(0, 0, 0);
+            pdf.setDrawColor(0, 0, 0);
+            pdf.rect(margin + col1, y + 7, col2, 7);
+            pdf.setFont('helvetica', 'normal');
+            pdf.text(formatearFecha(fecha), margin + col1 + 2, y + 12);
+            
+            y += 16;
+            
+            // NOMBRE DE CLIENTE
+            const clienteCol1 = maxWidth / 2;
+            const clienteCol2 = maxWidth / 2;
+            
+            pdf.setFillColor(verdeEA[0], verdeEA[1], verdeEA[2]);
+            pdf.setDrawColor(verdeEA[0], verdeEA[1], verdeEA[2]);
+            pdf.rect(margin, y, clienteCol1, 7, 'F');
+            pdf.rect(margin + clienteCol1, y, clienteCol2, 7, 'F');
+            pdf.setTextColor(255, 255, 255);
+            pdf.setFont('helvetica', 'bold');
+            pdf.text('NOMBRE DE CLIENTE', margin + 2, y + 5);
+            pdf.text('Teléfono', margin + clienteCol1 + 2, y + 5);
+            
+            pdf.setTextColor(0, 0, 0);
+            pdf.setDrawColor(0, 0, 0);
+            pdf.rect(margin, y + 7, clienteCol1, 7);
+            pdf.rect(margin + clienteCol1, y + 7, clienteCol2, 7);
+            pdf.setFont('helvetica', 'normal');
+            pdf.text(document.getElementById('cliente').value, margin + 2, y + 12);
+            pdf.text(document.getElementById('telefono').value, margin + clienteCol1 + 2, y + 12);
+            
+            y += 14;
+            
+            // Dirección
+            pdf.setFillColor(verdeEA[0], verdeEA[1], verdeEA[2]);
+            pdf.setDrawColor(verdeEA[0], verdeEA[1], verdeEA[2]);
+            pdf.rect(margin, y, clienteCol1, 7, 'F');
+            pdf.setTextColor(255, 255, 255);
+            pdf.setFont('helvetica', 'bold');
+            pdf.text('Dirección', margin + 2, y + 5);
+            
+            // Correo
+            pdf.rect(margin + clienteCol1, y, clienteCol2, 7, 'F');
+            pdf.text('Correo', margin + clienteCol1 + 2, y + 5);
+            
+            pdf.setTextColor(0, 0, 0);
+            pdf.setDrawColor(0, 0, 0);
+            pdf.rect(margin, y + 7, clienteCol1, 7);
+            pdf.rect(margin + clienteCol1, y + 7, clienteCol2, 7);
+            pdf.setFont('helvetica', 'normal');
+            pdf.setFontSize(7);
+            const dirText = pdf.splitTextToSize(document.getElementById('direccion').value, clienteCol1 - 4);
+            pdf.text(dirText, margin + 2, y + 11);
+            pdf.text(document.getElementById('correo').value, margin + clienteCol1 + 2, y + 12);
+            
+            y += 14;
+            
+            // Sucursal
+            pdf.setFillColor(verdeEA[0], verdeEA[1], verdeEA[2]);
+            pdf.setDrawColor(verdeEA[0], verdeEA[1], verdeEA[2]);
+            pdf.rect(margin, y, clienteCol1, 7, 'F');
+            pdf.setTextColor(255, 255, 255);
+            pdf.setFontSize(9);
+            pdf.setFont('helvetica', 'bold');
+            pdf.text('Sucursal', margin + 2, y + 5);
+            
+            pdf.setTextColor(0, 0, 0);
+            pdf.setDrawColor(0, 0, 0);
+            pdf.rect(margin, y + 7, clienteCol1, 7);
+            pdf.setFont('helvetica', 'normal');
+            
+            y += 16;
+            
+            // TABLA DE ARTÍCULOS
+            const colWidths = [15, 90, 25, 30, 30];
+            const headers = ['N°.', 'Descripción', 'Cantidad', 'Unitario', 'Total'];
+            
+            pdf.setFillColor(verdeEA[0], verdeEA[1], verdeEA[2]);
+            pdf.setDrawColor(verdeEA[0], verdeEA[1], verdeEA[2]);
+            
+            let xPos = margin;
+            headers.forEach((header, idx) => {
+                pdf.rect(xPos, y, colWidths[idx], 7, 'F');
+                pdf.setTextColor(255, 255, 255);
+                pdf.setFont('helvetica', 'bold');
+                pdf.setFontSize(8);
+                pdf.text(header, xPos + colWidths[idx]/2, y + 5, { align: 'center' });
+                xPos += colWidths[idx];
+            });
+            
+            y += 7;
+            
+            // Artículos
+            const filas = document.querySelectorAll('#tbody-articulos tr');
+            pdf.setTextColor(0, 0, 0);
+            pdf.setFont('helvetica', 'normal');
+            pdf.setDrawColor(0, 0, 0);
+            
+            const maxFilas = 5;
+            const alturaFila = 8;
+            
+            filas.forEach((fila, idx) => {
+                if (idx < maxFilas) {
+                    const desc = fila.querySelector('.descripcion-input').value || '';
+                    const cant = fila.querySelector('.cantidad-input').value || '0';
+                    const precio = fila.querySelector('.precio-input').value || '0.00';
+                    const total = (parseFloat(cant) * parseFloat(precio)).toFixed(2);
+                    
+                    xPos = margin;
+                    
+                    // N°
+                    pdf.rect(xPos, y, colWidths[0], alturaFila);
+                    pdf.text((idx + 1).toString(), xPos + colWidths[0]/2, y + 5, { align: 'center' });
+                    xPos += colWidths[0];
+                    
+                    // Descripción
+                    pdf.rect(xPos, y, colWidths[1], alturaFila);
+                    const descCorta = pdf.splitTextToSize(desc.substring(0, 60), colWidths[1] - 2);
+                    pdf.setFontSize(7);
+                    pdf.text(descCorta[0] || '', xPos + 1, y + 5);
+                    pdf.setFontSize(8);
+                    xPos += colWidths[1];
+                    
+                    // Cantidad
+                    pdf.rect(xPos, y, colWidths[2], alturaFila);
+                    pdf.text(cant, xPos + colWidths[2]/2, y + 5, { align: 'center' });
+                    xPos += colWidths[2];
+                    
+                    // Unitario
+                    pdf.rect(xPos, y, colWidths[3], alturaFila);
+                    pdf.text(`$${parseFloat(precio).toFixed(2)}`, xPos + colWidths[3] - 2, y + 5, { align: 'right' });
+                    xPos += colWidths[3];
+                    
+                    // Total
+                    pdf.rect(xPos, y, colWidths[4], alturaFila);
+                    pdf.text(`$${total}`, xPos + colWidths[4] - 2, y + 5, { align: 'right' });
+                    
+                    y += alturaFila;
+                }
+            });
+            
+            // Rellenar filas vacías si hay menos de 5
+            for (let i = filas.length; i < maxFilas; i++) {
+                xPos = margin;
+                colWidths.forEach((width) => {
+                    pdf.rect(xPos, y, width, alturaFila);
+                    xPos += width;
+                });
+                y += alturaFila;
+            }
+            
+            y += 2;
+            
+            // TOTALES
+            const subtotal = document.getElementById('subtotal').textContent;
+            const iva = document.getElementById('iva').textContent;
+            const total = document.getElementById('total').textContent;
+            
+            pdf.setFontSize(8);
+            pdf.text('Descuento', pageWidth - margin - 60, y);
+            pdf.text('0%', pageWidth - margin - 10, y, { align: 'right' });
+            y += 5;
+            
+            pdf.setFont('helvetica', 'bold');
+            pdf.text('Subtotal', pageWidth - margin - 60, y);
+            pdf.setFont('helvetica', 'normal');
+            pdf.text(subtotal, pageWidth - margin - 10, y, { align: 'right' });
+            y += 5;
+            
+            pdf.setFont('helvetica', 'bold');
+            pdf.text('IVA (16%)', pageWidth - margin - 60, y);
+            pdf.setFont('helvetica', 'normal');
+            pdf.text(iva, pageWidth - margin - 10, y, { align: 'right' });
+            y += 5;
+            
+            pdf.setFont('helvetica', 'bold');
+            pdf.text('TOTAL', pageWidth - margin - 60, y);
+            pdf.text(total, pageWidth - margin - 10, y, { align: 'right' });
+            
+            y -= 15;
+            
+            // Condiciones de pago
+            const condiciones = document.getElementById('condiciones-pago').value;
+            pdf.setFont('helvetica', 'bold');
+            pdf.text('Condiciones de pago', margin, y);
+            y += 5;
+            pdf.setFont('helvetica', 'normal');
+            pdf.setFontSize(7);
+            const condLines = pdf.splitTextToSize(condiciones || '', 80);
+            pdf.text(condLines, margin, y);
+            
+            y += 20;
+            
+            // Pesos en letra
+            pdf.setFontSize(7);
+            pdf.text('00/100 PESOS MEXICANOS', margin, y);
+            
+            y += 10;
+            
+            // FIRMAS
+            const anchoFirma = (maxWidth - 20) / 3;
+            const xFirma1 = margin;
+            const xFirma2 = margin + anchoFirma + 10;
+            const xFirma3 = margin + (anchoFirma * 2) + 20;
+            
+            // Realizó
+            pdf.setFillColor(verdeEA[0], verdeEA[1], verdeEA[2]);
+            pdf.setDrawColor(verdeEA[0], verdeEA[1], verdeEA[2]);
+            pdf.rect(xFirma1, y, anchoFirma, 7, 'F');
+            pdf.setTextColor(255, 255, 255);
+            pdf.setFontSize(8);
+            pdf.setFont('helvetica', 'bold');
+            pdf.text('Realizó', xFirma1 + anchoFirma/2, y + 5, { align: 'center' });
+            
+            pdf.setTextColor(0, 0, 0);
+            pdf.setDrawColor(0, 0, 0);
+            pdf.rect(xFirma1, y + 7, anchoFirma, 15);
+            pdf.setFont('helvetica', 'normal');
+            pdf.setFontSize(7);
+            pdf.text(document.getElementById('realizo').value || '', xFirma1 + anchoFirma/2, y + 15, { align: 'center' });
+            pdf.setFontSize(6);
+            pdf.text('Nombre, fecha y firma', xFirma1 + anchoFirma/2, y + 20, { align: 'center' });
+            
+            // Revisó
+            pdf.setFillColor(verdeEA[0], verdeEA[1], verdeEA[2]);
+            pdf.setDrawColor(verdeEA[0], verdeEA[1], verdeEA[2]);
+            pdf.rect(xFirma2, y, anchoFirma, 7, 'F');
+            pdf.setTextColor(255, 255, 255);
+            pdf.setFontSize(8);
+            pdf.setFont('helvetica', 'bold');
+            pdf.text('Revisó', xFirma2 + anchoFirma/2, y + 5, { align: 'center' });
+            
+            pdf.setTextColor(0, 0, 0);
+            pdf.setDrawColor(0, 0, 0);
+            pdf.rect(xFirma2, y + 7, anchoFirma, 15);
+            pdf.setFont('helvetica', 'normal');
+            pdf.setFontSize(7);
+            pdf.text(document.getElementById('reviso').value || '', xFirma2 + anchoFirma/2, y + 15, { align: 'center' });
+            pdf.setFontSize(6);
+            pdf.text('Nombre, fecha y firma', xFirma2 + anchoFirma/2, y + 20, { align: 'center' });
+            
+            // Autorizó
+            pdf.setFillColor(verdeEA[0], verdeEA[1], verdeEA[2]);
+            pdf.setDrawColor(verdeEA[0], verdeEA[1], verdeEA[2]);
+            pdf.rect(xFirma3, y, anchoFirma, 7, 'F');
+            pdf.setTextColor(255, 255, 255);
+            pdf.setFontSize(8);
+            pdf.setFont('helvetica', 'bold');
+            pdf.text('Autorizó', xFirma3 + anchoFirma/2, y + 5, { align: 'center' });
+            
+            pdf.setTextColor(0, 0, 0);
+            pdf.setDrawColor(0, 0, 0);
+            pdf.rect(xFirma3, y + 7, anchoFirma, 15);
+            pdf.setFont('helvetica', 'normal');
+            pdf.setFontSize(7);
+            pdf.text(document.getElementById('autorizo-orden').value || '', xFirma3 + anchoFirma/2, y + 15, { align: 'center' });
+            pdf.setFontSize(6);
+            pdf.text('Nombre, fecha y firma', xFirma3 + anchoFirma/2, y + 20, { align: 'center' });
+            
+            // PIE DE PÁGINA
+            const footerY = 265;
+            pdf.setFontSize(7);
+            pdf.setFont('helvetica', 'bold');
+            pdf.setTextColor(0, 0, 0);
+            
+            pdf.text('EMISIÓN:', margin, footerY);
+            pdf.setFont('helvetica', 'normal');
+            pdf.text('ENERO, 2024', margin, footerY + 3);
+            
+            pdf.setFont('helvetica', 'bold');
+            pdf.text('REVISIÓN:', pageWidth/2 - 10, footerY);
+            pdf.setFont('helvetica', 'normal');
+            pdf.text('00', pageWidth/2 - 10, footerY + 3);
+            
+            pdf.setFont('helvetica', 'bold');
+            pdf.text('CÓDIGO:', pageWidth - margin - 30, footerY);
+            pdf.setFont('helvetica', 'normal');
+            pdf.text('EA-FCPS-05.02', pageWidth - margin - 30, footerY + 3);
+            
+            pdf.save(`Orden_Compra_${numOrden}.pdf`);
+            showToast('PDF generado correctamente', 'success');
+        }
+
+        // ============================================
+        // FUNCIONES DE LIMPIEZA
+        // ============================================
+
+        function limpiarFormulario(tipo) {
+            if (confirm('¿Está seguro de limpiar todo el formulario?')) {
+                if (tipo === 'solicitud') {
+                    document.getElementById('fecha-solicitud').value = '';
+                    document.getElementById('area-solicita').value = '';
+                    document.getElementById('descripcion').value = '';
+                    document.getElementById('tipo-solicitud').value = '';
+                    document.getElementById('proveedores-sugeridos').value = '';
+                    document.getElementById('solicito').value = '';
+                    document.getElementById('autorizo-sol').value = '';
+                    document.getElementById('folio-solicitud').value = generarFolio('solicitud');
+                } else if (tipo === 'orden') {
+                    document.getElementById('proveedor').value = '';
+                    document.getElementById('fecha-orden').value = '';
+                    document.getElementById('condiciones-pago').value = '';
+                    document.getElementById('realizo').value = '';
+                    document.getElementById('reviso').value = '';
+                    document.getElementById('autorizo-orden').value = '';
+                    
+                    const tbody = document.getElementById('tbody-articulos');
+                    tbody.innerHTML = `
+                        <tr>
+                            <td class="item-number">1</td>
+                            <td><input type="text" class="descripcion-input" placeholder="Descripción del artículo o servicio"></td>
+                            <td><input type="number" class="cantidad-input" min="1" value="1" onchange="calcularTotales()"></td>
+                            <td><input type="number" class="precio-input" min="0" step="0.01" placeholder="0.00" onchange="calcularTotales()"></td>
+                            <td class="total-item">$0.00</td>
+                            <td><button class="btn btn-danger" onclick="eliminarFila(this)" style="padding: 0.3rem 0.6rem;">✕</button></td>
+                        </tr>
+                    `;
+                    contadorArticulos = 1;
+                    calcularTotales();
+                    document.getElementById('num-orden').value = generarFolio('orden');
+                } else if (tipo === 'evaluacion') {
+                    document.getElementById('proveedor-eval').value = '';
+                    document.querySelectorAll('.calificacion-input').forEach(input => input.value = '');
+                    document.getElementById('comentarios-cotizacion').value = '';
+                    document.getElementById('comentarios-equipos').value = '';
+                    document.getElementById('comentarios-calibracion').value = '';
+                    document.getElementById('calificacion-final').value = '';
+                    document.getElementById('conclusion').value = '';
+                    document.getElementById('elaboro-eval').value = '';
+                    document.getElementById('reviso-eval').value = '';
+                } else if (tipo === 'lista') {
+                    document.getElementById('nuevo-nombre').value = '';
+                    document.getElementById('nuevo-servicio').value = '';
+                    document.getElementById('nuevo-ingreso').value = '';
+                    document.getElementById('nuevo-direccion').value = '';
+                    document.getElementById('nuevo-numero').value = '';
+                    document.getElementById('nuevo-correo').value = '';
+                }
+                
+                showToast('Formulario limpiado', 'info');
+            }
+        }
+
+        // ============================================
+        // FUNCIONES PARA EVALUACIÓN DE PROVEEDOR
+        // ============================================
+
+        function calcularCalificacion() {
+            const inputs = document.querySelectorAll('.calificacion-input');
+            let total = 0;
+            let count = 0;
+            
+            inputs.forEach(input => {
+                const valor = parseFloat(input.value) || 0;
+                if (valor > 0) {
+                    total += valor;
+                    count++;
+                }
+            });
+            
+            if (count === 0) {
+                showToast('Ingrese al menos una calificación', 'warning');
+                return;
+            }
+            
+            const promedio = (total / count).toFixed(2);
+            document.getElementById('calificacion-final').value = promedio;
+            
+            // Sugerir conclusión
+            if (promedio >= 9) {
+                document.getElementById('conclusion').value = 'Excelente';
+            } else if (promedio >= 7) {
+                document.getElementById('conclusion').value = 'Muy Bueno';
+            } else if (promedio >= 5) {
+                document.getElementById('conclusion').value = 'Bueno';
+            } else if (promedio >= 3) {
+                document.getElementById('conclusion').value = 'Regular';
+            } else {
+                document.getElementById('conclusion').value = 'No Apto';
+            }
+            
+            showToast('Calificación calculada correctamente', 'success');
+        }
+
+        function generarPDFEvaluacion() {
+            const proveedor = document.getElementById('proveedor-eval').value;
+            
+            if (!proveedor) {
+                showToast('Ingrese el nombre del proveedor', 'error');
+                return;
+            }
+            
+            showToast('Generando PDF de evaluación...', 'info');
+            
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF('p', 'mm', 'letter');
+            
+            const margin = 15;
+            let y = margin;
+            const pageWidth = 215.9;
+            const maxWidth = pageWidth - (margin * 2);
+            const verdeEA = [0, 86, 0];
+            
+            // TÍTULO
+            pdf.setFontSize(12);
+            pdf.setFont('helvetica', 'bold');
+            pdf.text('EVALUACIÓN DE PROVEEDOR', pageWidth / 2, y, { align: 'center' });
+            y += 6;
+            pdf.setFontSize(8);
+            pdf.text('EA-FCPS-05.03', pageWidth - margin, y, { align: 'right' });
+            y += 10;
+            
+            // Proveedor
+            pdf.setFillColor(verdeEA[0], verdeEA[1], verdeEA[2]);
+            pdf.rect(margin, y, maxWidth, 6, 'F');
+            pdf.setTextColor(255, 255, 255);
+            pdf.setFontSize(9);
+            pdf.text('CRITERIOS', margin + 2, y + 4);
+            y += 6;
+            
+            pdf.setTextColor(0, 0, 0);
+            pdf.rect(margin, y, maxWidth, 6);
+            pdf.setFont('helvetica', 'normal');
+            pdf.text(`Proveedor: ${proveedor}`, margin + 2, y + 4);
+            y += 8;
+            
+            // Instrucciones
+            pdf.setFontSize(7);
+            pdf.text('EXCELENTE = 10 | MUY BUENO = 8 | BUENO = 6 | REGULAR = 4 | MALO = 2', margin, y);
+            y += 6;
+            
+            // Secciones (simplificado para PDF)
+            const calificaciones = Array.from(document.querySelectorAll('.calificacion-input')).map(i => i.value || '==');
+            const calificacionFinal = document.getElementById('calificacion-final').value || '==';
+            const conclusion = document.getElementById('conclusion').value || '==';
+            
+            pdf.setFontSize(8);
+            pdf.setFont('helvetica', 'bold');
+            pdf.text(`CALIFICACIÓN FINAL: ${calificacionFinal}`, margin, y);
+            y += 5;
+            pdf.text(`CONCLUSIÓN: ${conclusion}`, margin, y);
+            y += 10;
+            
+            pdf.setFontSize(7);
+            pdf.setFont('helvetica', 'italic');
+            const nota = pdf.splitTextToSize('La presente evaluación es de carácter CONFIDENCIAL y tiene el propósito de conocer en forma general la calidad del servicio y/o capacidad con que cuenta el proveedor para cumplir el servicio acordado.', maxWidth);
+            pdf.text(nota, margin, y);
+            
+            // PIE DE PÁGINA
+            const footerY = 265;
+            pdf.setFontSize(7);
+            pdf.setFont('helvetica', 'bold');
+            pdf.text('EMISIÓN:', margin, footerY);
+            pdf.setFont('helvetica', 'normal');
+            pdf.text('ENERO, 2024', margin, footerY + 3);
+            
+            pdf.setFont('helvetica', 'bold');
+            pdf.text('REVISIÓN:', pageWidth/2 - 10, footerY);
+            pdf.setFont('helvetica', 'normal');
+            pdf.text('00', pageWidth/2 - 10, footerY + 3);
+            
+            pdf.setFont('helvetica', 'bold');
+            pdf.text('CÓDIGO:', pageWidth - margin - 30, footerY);
+            pdf.setFont('helvetica', 'normal');
+            pdf.text('EA-FCPS-05.03', pageWidth - margin - 30, footerY + 3);
+            
+            pdf.save(`Evaluacion_Proveedor_${proveedor.replace(/\s/g, '_')}.pdf`);
+            showToast('PDF generado correctamente', 'success');
+        }
+
+        // ============================================
+        // FUNCIONES PARA LISTA DE PROVEEDORES
+        // ============================================
+
+        let proveedores = [];
+        let contadorProveedores = 1;
+
+        function agregarProveedor() {
+            const nombre = document.getElementById('nuevo-nombre').value.trim();
+            const servicio = document.getElementById('nuevo-servicio').value.trim();
+            const ingreso = document.getElementById('nuevo-ingreso').value;
+            const direccion = document.getElementById('nuevo-direccion').value.trim();
+            const numero = document.getElementById('nuevo-numero').value.trim();
+            const correo = document.getElementById('nuevo-correo').value.trim();
+            
+            if (!nombre || !servicio) {
+                showToast('Complete al menos el nombre y servicio', 'error');
+                return;
+            }
+            
+            const proveedor = {
+                id: contadorProveedores++,
+                nombre,
+                servicio,
+                ingreso: ingreso || new Date().toISOString().split('T')[0],
+                direccion,
+                numero,
+                correo
+            };
+            
+            proveedores.push(proveedor);
+            localStorage.setItem('proveedoresEA', JSON.stringify(proveedores));
+            
+            actualizarTablaProveedores();
+            limpiarFormulario('lista');
+            
+            showToast('Proveedor agregado correctamente', 'success');
+        }
+
+        function actualizarTablaProveedores() {
+            const tbody = document.getElementById('tbody-proveedores');
+            
+            if (proveedores.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="8" style="text-align: center; padding: 2rem; color: #999;">
+                            No hay proveedores registrados. Use el formulario de abajo para agregar proveedores.
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            tbody.innerHTML = '';
+            proveedores.forEach((prov, index) => {
+                const fila = document.createElement('tr');
+                fila.innerHTML = `
+                    <td>${index + 1}</td>
+                    <td>${prov.nombre}</td>
+                    <td>${prov.servicio}</td>
+                    <td>${formatearFecha(prov.ingreso + 'T00:00')}</td>
+                    <td style="font-size: 0.8rem;">${prov.direccion}</td>
+                    <td>${prov.numero}</td>
+                    <td style="font-size: 0.8rem;">${prov.correo}</td>
+                    <td>
+                        <button class="btn btn-danger" onclick="eliminarProveedor(${prov.id})" style="padding: 0.3rem 0.6rem; font-size: 0.8rem;">
+                            ✕
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(fila);
+            });
+        }
+
+        function eliminarProveedor(id) {
+            if (confirm('¿Eliminar este proveedor de la lista?')) {
+                proveedores = proveedores.filter(p => p.id !== id);
+                localStorage.setItem('proveedoresEA', JSON.stringify(proveedores));
+                actualizarTablaProveedores();
+                showToast('Proveedor eliminado', 'success');
+            }
+        }
+
+        function filtrarProveedores() {
+            const busqueda = document.getElementById('buscar-proveedor').value.toLowerCase();
+            const filas = document.querySelectorAll('#tbody-proveedores tr');
+            
+            filas.forEach(fila => {
+                const texto = fila.textContent.toLowerCase();
+                fila.style.display = texto.includes(busqueda) ? '' : 'none';
+            });
+        }
+
+        function generarPDFLista() {
+            if (proveedores.length === 0) {
+                showToast('Agregue proveedores antes de generar el PDF', 'warning');
+                return;
+            }
+            
+            showToast('Generando PDF de lista de proveedores...', 'info');
+            
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF('p', 'mm', 'letter');
+            
+            const margin = 15;
+            let y = margin;
+            const pageWidth = 215.9;
+            const maxWidth = pageWidth - (margin * 2);
+            const verdeEA = [0, 86, 0];
+            
+            // TÍTULO
+            pdf.setFontSize(11);
+            pdf.setFont('helvetica', 'bold');
+            pdf.text('LISTA DE PROVEEDORES CONFIABLES', pageWidth / 2, y, { align: 'center' });
+            y += 6;
+            pdf.setFontSize(8);
+            pdf.text('EA-FCPS-05.04', pageWidth - margin, y, { align: 'right' });
+            y += 10;
+            
+            // Tabla de proveedores
+            const colWidths = [15, 50, 40, 22, 38, 22, 30];
+            const headers = ['N°', 'Nombre', 'Servicio', 'Ingreso', 'Dirección', 'Número', 'Correo'];
+            
+            pdf.setFillColor(verdeEA[0], verdeEA[1], verdeEA[2]);
+            let xPos = margin;
+            headers.forEach((header, idx) => {
+                pdf.rect(xPos, y, colWidths[idx], 7, 'F');
+                pdf.setTextColor(255, 255, 255);
+                pdf.setFont('helvetica', 'bold');
+                pdf.setFontSize(7);
+                pdf.text(header, xPos + colWidths[idx]/2, y + 5, { align: 'center' });
+                xPos += colWidths[idx];
+            });
+            
+            y += 7;
+            
+            // Datos
+            pdf.setTextColor(0, 0, 0);
+            pdf.setFont('helvetica', 'normal');
+            pdf.setFontSize(6);
+            
+            proveedores.slice(0, 15).forEach((prov, idx) => {
+                xPos = margin;
+                const alturaFila = 12;
+                
+                // Dibujar celdas
+                colWidths.forEach(width => {
+                    pdf.rect(xPos, y, width, alturaFila);
+                    xPos += width;
+                });
+                
+                // Contenido
+                xPos = margin;
+                pdf.text((idx + 1).toString(), xPos + colWidths[0]/2, y + 4, { align: 'center' });
+                xPos += colWidths[0];
+                
+                const nomCorto = pdf.splitTextToSize(prov.nombre.substring(0, 40), colWidths[1] - 2);
+                pdf.text(nomCorto[0], xPos + 1, y + 4);
+                xPos += colWidths[1];
+                
+                const servCorto = pdf.splitTextToSize(prov.servicio.substring(0, 35), colWidths[2] - 2);
+                pdf.text(servCorto[0], xPos + 1, y + 4);
+                xPos += colWidths[2];
+                
+                pdf.text(prov.ingreso.substring(0, 10), xPos + 1, y + 4);
+                xPos += colWidths[3];
+                
+                const dirCorta = pdf.splitTextToSize(prov.direccion.substring(0, 35), colWidths[4] - 2);
+                pdf.text(dirCorta[0], xPos + 1, y + 4);
+                xPos += colWidths[4];
+                
+                pdf.text(prov.numero.substring(0, 15), xPos + 1, y + 4);
+                xPos += colWidths[5];
+                
+                const emailCorto = pdf.splitTextToSize(prov.correo.substring(0, 30), colWidths[6] - 2);
+                pdf.text(emailCorto[0], xPos + 1, y + 4);
+                
+                y += alturaFila;
+            });
+            
+            // PIE DE PÁGINA
+            const footerY = 265;
+            pdf.setFontSize(7);
+            pdf.setFont('helvetica', 'bold');
+            pdf.text('EMISIÓN:', margin, footerY);
+            pdf.setFont('helvetica', 'normal');
+            pdf.text('ENERO, 2024', margin, footerY + 3);
+            
+            pdf.setFont('helvetica', 'bold');
+            pdf.text('REVISIÓN:', pageWidth/2 - 10, footerY);
+            pdf.setFont('helvetica', 'normal');
+            pdf.text('00', pageWidth/2 - 10, footerY + 3);
+            
+            pdf.setFont('helvetica', 'bold');
+            pdf.text('CÓDIGO:', pageWidth - margin - 30, footerY);
+            pdf.setFont('helvetica', 'normal');
+            pdf.text('EA-FCPS-05.04', pageWidth - margin - 30, footerY + 3);
+            
+            pdf.save('Lista_Proveedores_Confiables_EA.pdf');
+            showToast('PDF generado correctamente', 'success');
+        }
+
+        // ============================================
+        // INICIALIZACIÓN
+        // ============================================
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const hoy = new Date().toISOString().split('T')[0];
+            document.getElementById('fecha-solicitud').value = hoy;
+            document.getElementById('fecha-orden').value = hoy;
+            document.getElementById('nuevo-ingreso').value = hoy;
+            
+            document.getElementById('folio-solicitud').value = generarFolio('solicitud');
+            document.getElementById('num-orden').value = generarFolio('orden');
+            
+            calcularTotales();
+            
+            // Configurar handlers para opción "Otro"
+            setupOtroHandlers();
+            
+            // Cargar logo como base64 (simplificado - el logo se incluirá cuando esté disponible)
+            logoBase64 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+            
+            // Cargar proveedores guardados
+            const proveedoresGuardados = localStorage.getItem('proveedoresEA');
+            if (proveedoresGuardados) {
+                proveedores = JSON.parse(proveedoresGuardados);
+                if (proveedores.length > 0) {
+                    contadorProveedores = Math.max(...proveedores.map(p => p.id)) + 1;
+                    actualizarTablaProveedores();
+                }
+            }
+            
+            console.log('✅ Sistema de Compras cargado correctamente');
+            console.log('📋 4 Formatos disponibles: Solicitud, Orden, Evaluación y Lista de Proveedores');
+        });
+    </script>
+</body>
+</html>
