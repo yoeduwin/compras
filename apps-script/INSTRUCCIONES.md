@@ -65,6 +65,12 @@ proyecto para que sea fácil de cambiar.
    `correo | nombre | activo | alta`. Con `activo` vacío, `sí`, `true` o `1` queda
    autorizado; con `no` queda bloqueado sin borrarlo.
 
+## Paso 5.1 — (Opcional) Carga los proveedores confiables en la hoja
+Si quieres los **15 proveedores confiables** (EA-FCPS-05.04) directamente en la
+hoja compartida: en la lista de funciones del editor elige **`sembrarProveedores`**
+y haz clic en **Ejecutar**. Crea/rellena la pestaña **`Proveedores`**. Es
+idempotente: si la vuelves a ejecutar, actualiza en vez de duplicar.
+
 ## Paso 6 — Publica como Aplicación web
 1. Arriba a la derecha: **Implementar → Nueva implementación**.
 2. En "Tipo", elige **Aplicación web** (ícono ⚙️ → Aplicación web).

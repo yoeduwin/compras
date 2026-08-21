@@ -187,6 +187,43 @@ function crearHojaUsuarios() {
   return 'Pestaña "' + SHEET_USUARIOS + '" lista. Agrega o quita correos ahí.';
 }
 
+/**
+ * Lista de proveedores confiables (EA-FCPS-05.04). Se usa para sembrar la hoja.
+ * Los IDs son fijos para que sembrar sea idempotente (no duplica al re-ejecutar).
+ */
+var PROVEEDORES_CONFIABLES = [
+  { id: 'prov-01', nombre: 'Ingeniería y Servicio EHS', servicio: 'Venta de equipos: Sonómetro, Calibrador acústico, Medidor de tierras, Luxómetro, Medidor de estrés térmico, Termómetro de líquido en vidrio', ingreso: '2024-02-01', direccion: 'Cedros 15, Salitrería, Texcoco, Estado de México, C.P. 56150', numero: '55 8290 0905', correo: 'daniel@isehs.com' },
+  { id: 'prov-02', nombre: 'GIMIN (Grupo de Instrumentación y Medición Industrial de México)', servicio: 'Venta de equipos: Anemómetro', ingreso: '2024-03-01', direccion: 'Estudios Azteca Mz.B L23 No.14 Col. Jardines Tecma, Iztacalco, C.P. 08920, CDMX', numero: '5634-0402 / 5634-7274', correo: 'cmin@gimim.com' },
+  { id: 'prov-03', nombre: 'Suministros en Metrología', servicio: 'Venta de equipos: Dosímetro', ingreso: '2024-03-01', direccion: 'Francisco I. Madero 200, Col. Domingo Arenas, San Martín Texmelucan, Puebla, C.P. 74000', numero: '246 148 8540', correo: 'ventas2@suministrosenmetrologia.com' },
+  { id: 'prov-04', nombre: 'MICROIMPORT', servicio: 'Venta de equipos: Medidor de vibraciones, Calibrador de vibraciones, Acelerómetros triaxiales cuerpo entero y mano-brazo', ingreso: '2024-06-01', direccion: 'Viaducto Miguel Alemán No. 230 Col. Magdalena Mixhuca, Venustiano Carranza, CDMX, C.P. 15850', numero: '55 6185 8153', correo: 'm.camacho@microimport.mx' },
+  { id: 'prov-05', nombre: 'PROCONSA (Proveedora Comercial del Norte)', servicio: 'Venta de equipos: Termohigrómetro', ingreso: '2024-07-01', direccion: '5a Avenida #924 local 1, Col. Cumbres 2do sector, C.P. 64610, Monterrey, Nuevo León', numero: '81 8110-9439', correo: 'proconsamexico@hotmail.com' },
+  { id: 'prov-06', nombre: 'Ingeniería Acústica Spectrum', servicio: 'Ensayos de aptitud: NOM-011-STPS-2001, NOM-081-SEMARNAT-1994', ingreso: '2024-08-01', direccion: 'Apaseo el Alto No. 66 Col. San Bartolo Atepehuacan, Gustavo A. Madero, C.P. 07730, CDMX', numero: '55 5567-0878 / 55 5368-6180', correo: 'acusticaspectrum@prodigy.net.mx' },
+  { id: 'prov-07', nombre: 'SIMH (Servicios Integrales en Medición e Higiene)', servicio: 'Calibración: Sonómetro, Calibrador Acústico, Dosímetro', ingreso: '2024-08-01', direccion: 'Adolfo G. García No. 4 Col. Constituyentes, C.P. 76147, Querétaro, Qro.', numero: '442 295 27 42', correo: 'imh@simh-mexico.com' },
+  { id: 'prov-08', nombre: 'Amazon.com.mx', servicio: 'Venta de equipo en línea: Década de resistencia', ingreso: '2024-08-01', direccion: 'Dr. Ángel Leaño 401, Col. Parque Industrial San Ángel, CDMX', numero: 'Compra independiente', correo: 'https://www.amazon.com.mx/' },
+  { id: 'prov-09', nombre: 'Metrología y Física Aplicada (MFA)', servicio: 'Calibración: Luxómetro', ingreso: '2024-08-01', direccion: 'Xel-Ha 22 Col. Vista Azul, Querétaro, Qro., México, C.P. 76087', numero: '442 254 3354', correo: 'metrologiafa@mfa.com' },
+  { id: 'prov-10', nombre: 'Grupo de Metrología CLAM', servicio: 'Calibración: Medidor de resistencia de tierras, Década de resistencia, Multímetro digital', ingreso: '2024-09-01', direccion: 'Misión de Santiago No. 15, Las Misiones, Naucalpan de Juárez, México, C.P. 53140', numero: '53438344 / 53439739', correo: 'ventas@grupoclam.com.mx' },
+  { id: 'prov-11', nombre: 'EVAMSA (Evaluaciones Ambientales del Centro)', servicio: 'Calibración: Medidor de estrés térmico', ingreso: '2024-09-01', direccion: 'Av. Hidalgo 29 San Juan Ixtacala, C.P. 54160, Tlalnepantla, Estado de México', numero: '55 7090 9624', correo: 'cotiza.evamsa@outlook.com' },
+  { id: 'prov-12', nombre: 'ICEMA (Ingeniería y Calibraciones de Equipos para Monitoreo Ambiental)', servicio: 'Calibración: Anemómetro, Higrómetro, Termómetro digital', ingreso: '2024-10-01', direccion: 'Aretillo 144 Patrimonio Familiar, 02980 Azcapotzalco, CDMX', numero: '55 7155 7731', correo: 'contacto@icema.com.mx' },
+  { id: 'prov-13', nombre: 'Metas (Metrólogos Asociados)', servicio: 'Calibración: Medidor de vibraciones, Calibrador de vibraciones, Acelerómetros triaxiales, Termómetros de líquido en vidrio', ingreso: '2024-12-01', direccion: 'Antonio Caso 246 Col. Ciudad Guzmán Centro, Zapotlán el Grande, Jalisco', numero: '341 413 6123', correo: 'metas@metas.com.mx' },
+  { id: 'prov-14', nombre: 'TWILIGHT', servicio: 'Venta de equipos: Dosímetro', ingreso: '2024-12-01', direccion: 'Del Paseo Residencial, Monterrey, Nuevo León, C.P. 64920', numero: '81 8115-1400 / 81 8173-4300', correo: 'ventas@twilight.mx' },
+  { id: 'prov-15', nombre: 'Servicio de Medición + Control', servicio: 'Venta de equipo: Medidor de resistencia a tierra física', ingreso: '2025-08-01', direccion: 'Luis Moya 76-A, Col. Centro, Cuauhtémoc, 06070, CDMX', numero: '55 5518 2260', correo: 'https://www.smedicion.com/' }
+];
+
+/**
+ * Siembra los 15 proveedores confiables en la pestaña "Proveedores".
+ * Ejecuta esta función UNA vez desde el editor de Apps Script.
+ * Es idempotente: si ya existen (por id), los actualiza en lugar de duplicar.
+ */
+function sembrarProveedores() {
+  var n = 0;
+  PROVEEDORES_CONFIABLES.forEach(function (p) {
+    upsertRecord('proveedor', { id: p.id, nombre: p.nombre, servicio: p.servicio, ingreso: p.ingreso,
+      direccion: p.direccion, numero: p.numero, correo: p.correo, ultimaCalif: null, ultimaEval: null });
+    n++;
+  });
+  return 'Listo: ' + n + ' proveedores sembrados/actualizados en la pestaña "' + TABS.proveedor + '".';
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 //  DATOS
 // ═══════════════════════════════════════════════════════════════════════════
