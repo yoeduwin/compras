@@ -692,8 +692,15 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
                     <div class="section-title">Información General</div>
                     <div class="form-grid">
                         <div class="form-group">
+                            <label for="proveedor-confiable">Proveedor confiable (opcional)</label>
+                            <select id="proveedor-confiable" onchange="elegirProveedorConfiable()">
+                                <option value="">— Nuevo / no listado —</option>
+                            </select>
+                            <span class="hint">Elige uno de la lista de confiables, o deja "Nuevo" si es un proveedor nuevo y escríbelo abajo.</span>
+                        </div>
+                        <div class="form-group">
                             <label for="proveedor">Nombre de proveedor</label>
-                            <input type="text" id="proveedor" placeholder="Nombre / razón social del proveedor" list="dl-proveedores">
+                            <input type="text" id="proveedor" placeholder="Nombre / razón social del proveedor" list="dl-proveedores" oninput="marcarProveedorManual()">
                             <datalist id="dl-proveedores"></datalist>
                         </div>
                         <div class="form-group">
@@ -1599,8 +1606,9 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         const year = new Date(fecha + 'T00:00:00').getFullYear();
         const folio = document.getElementById('num-orden').value.trim() || peekFolio('orden', year);
         const t = calcularTotales();
+        const esConfiable = DB.proveedores.some(p => p.nombre.trim().toLowerCase() === proveedor.toLowerCase());
         const rec = {
-            folio, fecha, proveedor,
+            folio, fecha, proveedor, proveedorConfiable: esConfiable,
             cliente: document.getElementById('cliente').value.trim(),
             telefono: document.getElementById('telefono').value.trim(),
             direccion: document.getElementById('direccion').value.trim(),
@@ -1863,6 +1871,15 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         const tbody = document.getElementById('tbody-proveedores');
         const dl = document.getElementById('dl-proveedores');
         dl.innerHTML = DB.proveedores.map(p => `<option value="${esc(p.nombre)}">`).join('');
+        // Selector explícito de proveedor confiable en la Orden de Compra (opcional)
+        const sel = document.getElementById('proveedor-confiable');
+        if (sel) {
+            const actual = sel.value;
+            sel.innerHTML = '<option value="">— Nuevo / no listado —</option>' +
+                DB.proveedores.slice().sort((a, b) => a.nombre.localeCompare(b.nombre))
+                    .map(p => `<option value="${esc(p.id)}">${esc(p.nombre)}</option>`).join('');
+            sel.value = actual; // conserva la selección si sigue existiendo
+        }
         if (DB.proveedores.length === 0) {
             tbody.innerHTML = `<tr class="empty-row"><td colspan="9">No hay proveedores registrados.</td></tr>`; return;
         }
@@ -1881,6 +1898,25 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
                     <button class="btn btn-danger btn-sm" title="Eliminar" onclick="eliminarProveedor('${p.id}')">✕</button>
                 </td>
             </tr>`).join('');
+    }
+    // Orden de Compra: al elegir un proveedor confiable del selector, copia su
+    // nombre al campo de texto. "Nuevo / no listado" deja el campo libre.
+    function elegirProveedorConfiable() {
+        const sel = document.getElementById('proveedor-confiable');
+        const inp = document.getElementById('proveedor');
+        if (!sel || !inp) return;
+        if (!sel.value) return; // "Nuevo": no tocar lo que haya escrito
+        const p = DB.proveedores.find(x => x.id === sel.value);
+        if (p) inp.value = p.nombre;
+    }
+    // Si el usuario escribe un nombre a mano que no coincide con el confiable
+    // seleccionado, el selector vuelve a "Nuevo / no listado".
+    function marcarProveedorManual() {
+        const sel = document.getElementById('proveedor-confiable');
+        const inp = document.getElementById('proveedor');
+        if (!sel || !inp || !sel.value) return;
+        const p = DB.proveedores.find(x => x.id === sel.value);
+        if (!p || p.nombre.toLowerCase() !== inp.value.trim().toLowerCase()) sel.value = '';
     }
     function guardarProveedor() {
         const nombre = document.getElementById('nuevo-nombre').value.trim();
@@ -2137,7 +2173,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
             document.getElementById('fecha-solicitud').value = new Date().toISOString().split('T')[0];
             document.getElementById('folio-solicitud').value = peekFolio('solicitud', new Date().getFullYear());
         } else if (tipo === 'orden') {
-            ['proveedor', 'condiciones-pago', 'realizo', 'reviso', 'autorizo-orden'].forEach(id => document.getElementById(id).value = '');
+            ['proveedor', 'proveedor-confiable', 'condiciones-pago', 'realizo', 'reviso', 'autorizo-orden'].forEach(id => document.getElementById(id).value = '');
             ['realizo-otro', 'reviso-otro', 'autorizo-orden-otro'].forEach(id => document.getElementById(id).style.display = 'none');
             document.getElementById('descuento').value = 0;
             document.getElementById('solicitud-rel').value = '';
