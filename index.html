@@ -1005,58 +1005,17 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
                         <tbody id="tbody-hist-eval"></tbody></table></div>
                 </div>
 
-                <div class="form-section" style="margin-top:2rem;">
-                    <div class="section-title">Conexión con Google Sheets (base de datos compartida)</div>
-                    <div style="padding:1.5rem;">
-                        <p style="margin-bottom:1rem; font-size:0.9rem; color:#555;">
-                            Conecta el sistema a una hoja de Google para tener un <strong>historial compartido</strong> entre equipos y personas.
-                            Sigue el archivo <code>apps-script/INSTRUCCIONES.md</code> del repositorio (montaje único de ~5 min) para obtener la URL y el token.
-                            Mientras no lo conectes, el sistema funciona igual guardando en este navegador.
-                        </p>
-                        <div class="form-grid" style="padding:0;">
-                            <div class="form-group full-width">
-                                <label for="sync-url">URL de la aplicación web (…/exec)</label>
-                                <input type="url" id="sync-url" placeholder="https://script.google.com/macros/s/AKfy.../exec">
-                            </div>
-                            <div class="form-group">
-                                <label for="sync-token">Token secreto</label>
-                                <input type="text" id="sync-token" placeholder="El mismo token que pusiste en el Apps Script">
-                            </div>
-                            <div class="form-group">
-                                <label>&nbsp;</label>
-                                <label style="display:flex; align-items:center; gap:8px; font-weight:600; color:#495057;">
-                                    <input type="checkbox" id="sync-enabled" style="width:auto;" onchange="toggleSync(this)"> Activar sincronización
-                                </label>
-                            </div>
-                        </div>
-                        <div class="backup-bar" style="margin-top:1rem;">
-                            <button class="btn btn-primary" onclick="probarConexion()">🔌 Probar conexión y guardar</button>
-                            <button class="btn btn-success" onclick="sincronizarAhora()">🔄 Sincronizar ahora</button>
-                            <span>Estado: <span id="sync-status" class="pill pill-gray">Desactivada</span></span>
-                            <span id="sync-pend" class="hint" style="margin-left:auto;">Todo sincronizado</span>
-                        </div>
-
-                        <div style="margin-top:1.5rem; border-top:1px dashed #ced4da; padding-top:1.2rem;">
-                            <div style="font-weight:600; color:var(--verde); margin-bottom:.5rem;">🔒 Restringir acceso por correo de Gmail (OAuth · opcional)</div>
-                            <p style="font-size:0.88rem; color:#555; margin-bottom:1rem;">
-                                Si activas esto, además del token cada persona deberá <strong>iniciar sesión con Google</strong> y su correo
-                                deberá estar en la lista blanca del Apps Script (<code>ALLOWED_EMAILS</code>). Necesitas un
-                                <strong>Client ID de OAuth</strong> (el mismo de tu proyecto en Google Cloud). Déjalo en blanco para no restringir.
-                            </p>
-                            <div class="form-grid" style="padding:0;">
-                                <div class="form-group full-width">
-                                    <label for="sync-clientid">Client ID de Google (OAuth)</label>
-                                    <input type="text" id="sync-clientid" placeholder="1234567890-abcdefg.apps.googleusercontent.com">
-                                </div>
-                            </div>
-                            <div class="backup-bar" style="margin-top:1rem;">
-                                <button class="btn btn-primary" onclick="initGoogleAuth()">🔑 Iniciar sesión con Google</button>
-                                <span id="google-btn"></span>
-                                <button class="btn btn-secondary" id="btn-signout" style="display:none;" onclick="cerrarSesionGoogle()">Cerrar sesión</button>
-                                <span id="auth-email" class="pill pill-gray">Restricción por correo desactivada</span>
-                            </div>
-                        </div>
-                    </div>
+                <!-- Barra discreta de sincronización (solo aparece si el sistema está configurado; la config va en el código, no aquí) -->
+                <div id="sync-bar" class="backup-bar" style="display:none; margin-bottom:1.5rem; align-items:center;">
+                    <span>☁️ Sincronización: <span id="sync-status" class="pill pill-gray">—</span></span>
+                    <span id="sync-pend" class="hint"></span>
+                    <button class="btn btn-secondary btn-sm" onclick="sincronizarAhora()">🔄 Sincronizar</button>
+                    <span id="auth-box" style="display:none; margin-left:auto; display:flex; gap:8px; align-items:center;">
+                        <span id="auth-email" class="pill pill-gray"></span>
+                        <span id="google-btn"></span>
+                        <button class="btn btn-primary btn-sm" id="btn-signin" onclick="initGoogleAuth()">🔑 Iniciar sesión</button>
+                        <button class="btn btn-secondary btn-sm" id="btn-signout" style="display:none;" onclick="cerrarSesionGoogle()">Salir</button>
+                    </span>
                 </div>
 
                 <div class="form-section" style="margin-top:2rem;">
@@ -1082,6 +1041,17 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     <div id="toast" class="toast" style="display: none;"></div>
 
     <script>
+    // ============================================================
+    //  CONFIGURACIÓN (se llena UNA sola vez, al montar el sistema)
+    //  No se muestra en la aplicación. Déjalo vacío para trabajar
+    //  solo en este equipo (sin base de datos compartida).
+    // ============================================================
+    const CONFIG = {
+        SHEETS_URL: '',        // URL /exec del Apps Script (ver apps-script/INSTRUCCIONES.md)
+        SHEETS_TOKEN: '',      // token secreto (el mismo del Apps Script)
+        GOOGLE_CLIENT_ID: ''   // opcional: Client ID de OAuth para restringir por correo de Gmail
+    };
+
     // ============================================================
     //  LOGO (SVG para UI + PNG para PDF)
     // ============================================================
@@ -1224,16 +1194,17 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     // ============================================================
     //  SINCRONIZACIÓN CON GOOGLE SHEETS (Apps Script)
     // ============================================================
-    const SYNC_KEY = 'eaSyncCfg';
-    let SYNC = { url: '', token: '', enabled: false, clientId: '' };
+    // La configuración vive en CONFIG (en el código), no en la interfaz.
+    let SYNC = { url: '', token: '', clientId: '' };
     let AUTH = { idToken: '', email: '' };
     function loadSync() {
-        try { SYNC = Object.assign(SYNC, JSON.parse(localStorage.getItem(SYNC_KEY)) || {}); } catch (e) {}
+        SYNC.url = (CONFIG.SHEETS_URL || '').trim();
+        SYNC.token = (CONFIG.SHEETS_TOKEN || '').trim();
+        SYNC.clientId = (CONFIG.GOOGLE_CLIENT_ID || '').trim();
         try { AUTH = Object.assign(AUTH, JSON.parse(localStorage.getItem('eaAuth')) || {}); } catch (e) {}
     }
-    function saveSync() { localStorage.setItem(SYNC_KEY, JSON.stringify(SYNC)); }
     function saveAuth() { localStorage.setItem('eaAuth', JSON.stringify(AUTH)); }
-    function syncOn() { return SYNC.enabled && SYNC.url && SYNC.token; }
+    function syncOn() { return !!(SYNC.url && SYNC.token); }
     function authRequired() { return !!SYNC.clientId; }
     function authReady() { return !authRequired() || !!AUTH.idToken; }
 
@@ -1332,37 +1303,6 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     function mergeInto(local, remote, key) {
         (remote || []).forEach(r => { const i = local.findIndex(x => x[key] === r[key]); if (i >= 0) local[i] = r; else local.push(r); });
     }
-    async function probarConexion() {
-        SYNC.url = document.getElementById('sync-url').value.trim();
-        SYNC.token = document.getElementById('sync-token').value.trim();
-        SYNC.clientId = document.getElementById('sync-clientid').value.trim();
-        if (!SYNC.url || !SYNC.token) { showToast('Ingresa la URL y el token', 'warning'); return; }
-        setSyncStatus('Probando…', 'pill-amber');
-        try {
-            const res = await apiGet('ping');
-            if (!res.ok) throw new Error(res.error || 'respuesta inválida');
-            SYNC.enabled = true; saveSync();
-            document.getElementById('sync-enabled').checked = true;
-            setSyncStatus('Conectado ✓', 'pill-green');
-            actualizarAuthUI();
-            if (res.authRequired && !AUTH.idToken) { showToast('Conexión OK. Ahora inicia sesión con Google para el acceso.', 'info'); return; }
-            showToast('Conexión exitosa. Sincronizando…', 'success');
-            await sincronizarAhora(true);
-        } catch (e) {
-            setSyncStatus('Error', 'pill-red');
-            showToast('No se pudo conectar: ' + e.message + '. Revisa la URL, el token y que la implementación sea "Cualquier usuario".', 'error');
-        }
-    }
-    function toggleSync(chk) {
-        SYNC.enabled = chk.checked;
-        SYNC.url = document.getElementById('sync-url').value.trim();
-        SYNC.token = document.getElementById('sync-token').value.trim();
-        SYNC.clientId = document.getElementById('sync-clientid').value.trim();
-        saveSync();
-        setSyncStatus(syncOn() ? 'Activada' : 'Desactivada', syncOn() ? 'pill-green' : 'pill-gray');
-        if (syncOn() && authReady()) sincronizarAhora(true);
-    }
-
     // ── Inicio de sesión con Google (OAuth) para restringir por correo ──
     let _gisLoaded = false;
     function cargarGIS() {
@@ -1381,9 +1321,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         catch (e) { return {}; }
     }
     async function initGoogleAuth() {
-        SYNC.clientId = document.getElementById('sync-clientid').value.trim();
-        if (!SYNC.clientId) { showToast('Ingresa primero el Client ID de Google', 'warning'); return; }
-        saveSync();
+        if (!SYNC.clientId) { showToast('El acceso por Google no está configurado', 'warning'); return; }
         try {
             await cargarGIS();
             google.accounts.id.initialize({ client_id: SYNC.clientId, callback: onGoogleCredential, auto_select: false });
@@ -1405,14 +1343,17 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         showToast('Sesión de Google cerrada', 'info');
     }
     function actualizarAuthUI() {
+        const box = document.getElementById('auth-box');
         const badge = document.getElementById('auth-email');
         const btnOut = document.getElementById('btn-signout');
+        const btnIn = document.getElementById('btn-signin');
+        if (box) box.style.display = authRequired() ? 'flex' : 'none';
         if (badge) {
             if (AUTH.email) { badge.textContent = 'Sesión: ' + AUTH.email; badge.className = 'pill pill-green'; }
-            else if (authRequired()) { badge.textContent = 'Sin iniciar sesión'; badge.className = 'pill pill-amber'; }
-            else { badge.textContent = 'Restricción por correo desactivada'; badge.className = 'pill pill-gray'; }
+            else { badge.textContent = 'Sin iniciar sesión'; badge.className = 'pill pill-amber'; }
         }
         if (btnOut) btnOut.style.display = AUTH.email ? 'inline-flex' : 'none';
+        if (btnIn) btnIn.style.display = AUTH.email ? 'none' : 'inline-flex';
     }
 
     // ============================================================
@@ -2267,12 +2208,11 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     }
     function initSyncUI() {
         loadSync();
-        const u = document.getElementById('sync-url'), t = document.getElementById('sync-token'), c = document.getElementById('sync-enabled'), ci = document.getElementById('sync-clientid');
-        if (u) u.value = SYNC.url || '';
-        if (t) t.value = SYNC.token || '';
-        if (ci) ci.value = SYNC.clientId || '';
-        if (c) c.checked = !!SYNC.enabled;
-        setSyncStatus(syncOn() ? 'Activada' : 'Desactivada', syncOn() ? 'pill-green' : 'pill-gray');
+        // La barra de sincronización solo aparece si el sistema está configurado (en CONFIG).
+        const bar = document.getElementById('sync-bar');
+        if (bar) bar.style.display = syncOn() ? 'flex' : 'none';
+        if (!syncOn()) return;
+        setSyncStatus(authReady() ? 'Conectando…' : 'Inicia sesión', authReady() ? 'pill-amber' : 'pill-amber');
         actualizarPendientes();
         actualizarAuthUI();
     }

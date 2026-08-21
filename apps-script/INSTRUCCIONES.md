@@ -44,15 +44,25 @@ En la hoja: menú **Extensiones → Apps Script**.
 Al terminar te da una **URL de la app web** que termina en **`/exec`**.
 Cópiala. (Si la pierdes: **Implementar → Administrar implementaciones**.)
 
-## Paso 6 — Conéctalo en el sistema de compras
-1. Abre el sistema → pestaña **🗂️ Historial y Trazabilidad**.
-2. En **"Conexión con Google Sheets"**:
-   - Pega la **URL** (…/exec).
-   - Escribe el mismo **token** del Paso 3.
-   - Clic en **🔌 Probar conexión y guardar**.
-3. Si todo está bien verás **Conectado ✓** y se sincroniza al instante.
+## Paso 6 — Conéctalo en el código (una sola vez)
+La configuración **no se captura en la aplicación** (para no exponer el token ni
+la URL a quien usa el sistema): se pone una vez en el archivo `index.html`, en el
+bloque `CONFIG` que está hasta arriba del `<script>`:
 
-¡Listo! Desde ahora cada folio que generes se guarda en tu hoja de Google.
+```js
+const CONFIG = {
+    SHEETS_URL: 'https://script.google.com/macros/s/AKfy.../exec',
+    SHEETS_TOKEN: 'EA-compras-2026-x7k9',   // el mismo token del Paso 3
+    GOOGLE_CLIENT_ID: ''                     // (opcional, ver más abajo)
+};
+```
+
+Guarda y publica `index.html`. Desde ese momento, al abrir el sistema aparece una
+barra discreta **☁️ Sincronización: Conectado ✓** en la pestaña Historial y cada
+folio que generes se guarda en tu hoja de Google. Si dejas `CONFIG` vacío, el
+sistema trabaja solo en el navegador (sin barra ni conexión).
+
+¡Listo!
 
 ---
 
@@ -61,7 +71,7 @@ Cópiala. (Si la pierdes: **Implementar → Administrar implementaciones**.)
   así **no se repiten** aunque dos personas generen al mismo tiempo. Se reinician
   cada año.
 - **Sin internet:** el sistema guarda local y deja los cambios "pendientes";
-  al reconectar, el botón **🔄 Sincronizar ahora** (o abrir la app) los sube.
+  al reconectar, el botón **🔄 Sincronizar** de la barra (o abrir la app) los sube.
 - **La hoja es legible:** cada pestaña tiene `clave | fecha | resumen | json`.
   La columna `json` es la fuente de verdad; las demás son para que tú leas/filtres.
 
@@ -100,11 +110,14 @@ var ALLOWED_EMAILS = [
 > Si dejas `ALLOWED_EMAILS` vacío, no se restringe por correo (solo el token).
 
 ### C. Configura el sistema de compras
-1. En la pestaña **Historial → Conexión con Google Sheets**, sección
-   **🔒 Restringir acceso por correo de Gmail**, pega el **Client ID**.
-2. Clic en **🔑 Iniciar sesión con Google** y elige tu cuenta.
-3. Si tu correo está en la lista, verás **Sesión: tu@correo** y se sincroniza.
-   Si no está autorizado, el sistema lo rechaza.
+1. En `index.html`, en el bloque `CONFIG`, pon tu Client ID:
+   ```js
+   GOOGLE_CLIENT_ID: 'TU-CLIENT-ID.apps.googleusercontent.com'
+   ```
+2. Al abrir el sistema, la barra de Historial mostrará **🔑 Iniciar sesión**.
+   Cada persona hace clic y elige su cuenta de Google.
+3. Si su correo está en la lista, verá **Sesión: su@correo** y podrá trabajar.
+   Si no está autorizado, el sistema lo rechaza y no sincroniza.
 
 Así, aunque alguien tenga el token, **no podrá leer ni escribir** si su correo no
 está en la lista blanca.
@@ -114,7 +127,7 @@ está en la lista blanca.
 ## Preguntas frecuentes
 - **¿Es seguro?** El acceso está protegido por tu *token*. Cualquiera con la URL
   **y** el token puede leer/escribir, así que trata el token como una contraseña.
-  Para más control, cambia el token y vuelve a **Probar conexión**.
+  Para más control, cambia el token en el Apps Script y en el bloque `CONFIG`.
 - **¿Puedo seguir usando el respaldo JSON?** Sí, sigue disponible en la misma
   pestaña como copia de seguridad adicional.
 - **¿Cambié el código?** Cada vez que edites `Code.gs` debes hacer
