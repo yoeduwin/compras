@@ -1163,12 +1163,14 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         if (!DB.ordenes) DB.ordenes = [];
         if (!DB.evaluaciones) DB.evaluaciones = [];
         if (!DB.proveedores) DB.proveedores = [];
-        // Migrar proveedores del formato anterior (v1)
-        if (!DB.seeded && DB.proveedores.length === 0) {
+        // Si la lista de proveedores está vacía, repón los confiables de referencia.
+        // (Se aplica aunque el navegador ya estuviera "sembrado": evita quedarse sin
+        //  lista si una sincronización previa la vació.)
+        if (DB.proveedores.length === 0) {
             const viejos = localStorage.getItem('proveedoresEA');
             if (viejos) { try { DB.proveedores = JSON.parse(viejos).map(p => ({ ...p, id: p.id || uid() })); } catch (e) {} }
             if (DB.proveedores.length === 0) {
-                DB.proveedores = PROVEEDORES_SEMILLA.map(p => ({ id: uid(), ...p, ultimaCalif: null, ultimaEval: null }));
+                DB.proveedores = PROVEEDORES_SEMILLA.map((p, i) => ({ id: 'prov-' + String(i + 1).padStart(2, '0'), ...p, ultimaCalif: null, ultimaEval: null }));
             }
             DB.seeded = true;
         }
@@ -1285,7 +1287,14 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
                 DB.solicitudes = rem.solicitudes || [];
                 DB.ordenes = rem.ordenes || [];
                 DB.evaluaciones = rem.evaluaciones || [];
-                DB.proveedores = rem.proveedores || [];
+                // Proveedores: si la hoja ya tiene, manda la hoja. Si está vacía pero
+                // tenemos confiables locales, súbelos a la hoja (auto-siembra) en vez
+                // de borrarlos, para que no se pierda la lista.
+                if ((rem.proveedores || []).length > 0) {
+                    DB.proveedores = rem.proveedores;
+                } else if (DB.proveedores.length > 0) {
+                    DB.proveedores.forEach(p => pushRemote('upsert', 'proveedor', p));
+                }
             } else {
                 // fusionar (remoto + locales aún no enviados)
                 mergeInto(DB.solicitudes, rem.solicitudes, 'folio');
