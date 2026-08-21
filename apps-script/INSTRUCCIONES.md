@@ -11,8 +11,10 @@ proyecto de Supabase. Montaje único de ~5 minutos.
 ---
 
 ## Paso 1 — Abre tu hoja de Google
-Usa la que ya tienes (o crea una nueva). No necesitas crear las pestañas a mano;
-el script crea solas las pestañas **Solicitudes, Ordenes, Evaluaciones y Proveedores**.
+Usa **esta hoja** (la que ya tienes):
+<https://docs.google.com/spreadsheets/d/1IoGmRjVUIItcCfEjb6HOP8gglqvkw6ZHbfDT-oX3FnY/edit>
+No necesitas crear las pestañas a mano; el script crea solas las pestañas
+**Solicitudes, Ordenes, Evaluaciones y Proveedores**.
 
 ## Paso 2 — Abre el editor de Apps Script
 En la hoja: menú **Extensiones → Apps Script**.
@@ -62,6 +64,52 @@ Cópiala. (Si la pierdes: **Implementar → Administrar implementaciones**.)
   al reconectar, el botón **🔄 Sincronizar ahora** (o abrir la app) los sube.
 - **La hoja es legible:** cada pestaña tiene `clave | fecha | resumen | json`.
   La columna `json` es la fuente de verdad; las demás son para que tú leas/filtres.
+
+---
+
+## (Opcional) Restringir el acceso por correo de Gmail — OAuth
+
+Por defecto el acceso está protegido solo con el **token**. Si además quieres que
+**solo ciertos correos de Google** puedan usar el sistema (como en tu proyecto
+"SEA"), activa esta capa. Requiere un **Client ID de OAuth**.
+
+### A. Crea (o reutiliza) un Client ID de OAuth
+1. Entra a **Google Cloud Console → APIs y servicios → Credenciales**
+   (<https://console.cloud.google.com/apis/credentials>).
+2. **Crear credenciales → ID de cliente de OAuth → Tipo: Aplicación web**.
+   (Si ya tienes uno en el proyecto "SEA", puedes reutilizarlo: solo agrégale el
+   origen del Paso A.3.)
+3. En **Orígenes de JavaScript autorizados** agrega la **URL donde está publicado
+   el sistema** (solo el origen, sin ruta). Por ejemplo, si lo abres desde GitHub
+   Pages: `https://yoeduwin.github.io`. (El login de Google **no** funciona
+   abriendo el archivo como `file://`; necesita una URL `https://` real.)
+4. Guarda y **copia el Client ID** (`…apps.googleusercontent.com`).
+5. En **Pantalla de consentimiento de OAuth**, agrega como *usuarios de prueba*
+   los correos que vayan a entrar (o publica la app).
+
+### B. Configura el Apps Script
+En `Code.gs`, arriba, llena estas dos variables y **vuelve a implementar**
+(Administrar implementaciones → editar → Versión: Nueva → Implementar):
+```js
+var CLIENT_ID = 'TU-CLIENT-ID.apps.googleusercontent.com';
+var ALLOWED_EMAILS = [
+  'eduwin.ejecutiva@gmail.com',
+  'eduardo.campos@ejemplo.com',
+];
+```
+> Si dejas `ALLOWED_EMAILS` vacío, no se restringe por correo (solo el token).
+
+### C. Configura el sistema de compras
+1. En la pestaña **Historial → Conexión con Google Sheets**, sección
+   **🔒 Restringir acceso por correo de Gmail**, pega el **Client ID**.
+2. Clic en **🔑 Iniciar sesión con Google** y elige tu cuenta.
+3. Si tu correo está en la lista, verás **Sesión: tu@correo** y se sincroniza.
+   Si no está autorizado, el sistema lo rechaza.
+
+Así, aunque alguien tenga el token, **no podrá leer ni escribir** si su correo no
+está en la lista blanca.
+
+---
 
 ## Preguntas frecuentes
 - **¿Es seguro?** El acceso está protegido por tu *token*. Cualquiera con la URL

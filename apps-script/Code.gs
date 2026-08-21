@@ -16,6 +16,16 @@
 // ⚠️ CAMBIA ESTE TOKEN por una palabra secreta tuya y ponla igual en la app.
 var TOKEN = 'CAMBIA-ESTE-TOKEN';
 
+// ── (OPCIONAL) Restringir acceso por correo de Google (OAuth) ──────────────
+// Si dejas ALLOWED_EMAILS vacío [], solo se pide el token de arriba.
+// Si pones correos, ADEMÁS del token se exige iniciar sesión con Google y que
+// el correo esté en esta lista. Pega el mismo Client ID que configures en la app.
+var CLIENT_ID = '';              // ej. '1234-abc.apps.googleusercontent.com'
+var ALLOWED_EMAILS = [           // correos de Gmail/Workspace autorizados
+  // 'eduwin.ejecutiva@gmail.com',
+  // 'eduardo.campos@ejecutivaambiental.com',
+];
+
 var TABS = {
   solicitud:  'Solicitudes',
   orden:      'Ordenes',
@@ -35,7 +45,10 @@ function handle(e, params) {
   try {
     if (String(params.token) !== String(TOKEN)) return json({ ok: false, error: 'Token inválido' });
     var action = params.action;
-    if (action === 'ping')   return json({ ok: true, service: 'EA Compras', time: new Date().toISOString() });
+    if (action === 'ping')   return json({ ok: true, service: 'EA Compras', time: new Date().toISOString(), authRequired: ALLOWED_EMAILS.length > 0 });
+    // Segunda capa (opcional): correo de Google autorizado
+    var auth = verifyAuth(params);
+    if (!auth.ok) return json(auth);
     if (action === 'pull')   return json({ ok: true, data: pullAll() });
     if (action === 'add')    return json(addRecord(params.collection, params.record || {}));
     if (action === 'upsert') return json(upsertRecord(params.collection, params.record || {}));
@@ -48,6 +61,32 @@ function handle(e, params) {
 
 function json(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}
+
+/**
+ * Verifica el inicio de sesión con Google (OAuth) contra la lista blanca.
+ * Si ALLOWED_EMAILS está vacío, no restringe (solo aplica el token).
+ * Valida el idToken con Google (tokeninfo): audiencia, expiración, correo
+ * verificado y que el correo esté autorizado.
+ */
+function verifyAuth(params) {
+  if (!ALLOWED_EMAILS || ALLOWED_EMAILS.length === 0) return { ok: true };
+  var idToken = params.idToken;
+  if (!idToken) return { ok: false, error: 'Debes iniciar sesión con Google.', authRequired: true };
+  try {
+    var resp = UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(idToken), { muteHttpExceptions: true });
+    var info = JSON.parse(resp.getContentText());
+    if (info.error || info.error_description) return { ok: false, error: 'Sesión de Google inválida.', authRequired: true };
+    if (CLIENT_ID && String(info.aud) !== String(CLIENT_ID)) return { ok: false, error: 'El Client ID no coincide.', authRequired: true };
+    if (Number(info.exp) * 1000 < Date.now()) return { ok: false, error: 'Tu sesión de Google expiró, inicia sesión de nuevo.', authRequired: true };
+    if (!(info.email_verified === 'true' || info.email_verified === true)) return { ok: false, error: 'El correo de Google no está verificado.', authRequired: true };
+    var email = String(info.email || '').toLowerCase();
+    var allowed = ALLOWED_EMAILS.map(function (e) { return String(e).toLowerCase().trim(); });
+    if (allowed.indexOf(email) < 0) return { ok: false, error: 'Acceso no autorizado para ' + email, authRequired: true };
+    return { ok: true, email: email };
+  } catch (e) {
+    return { ok: false, error: 'No se pudo validar el inicio de sesión de Google.', authRequired: true };
+  }
 }
 
 function getSheet(collection) {
