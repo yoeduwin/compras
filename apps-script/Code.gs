@@ -3,29 +3,31 @@
  * ------------------------------------------------------------------------
  * Publica esta hoja como "Aplicación web" (Implementar → Nueva implementación
  * → Aplicación web → Ejecutar como: Yo → Con acceso: Cualquier usuario).
- * Copia la URL /exec y pégala en el sistema de compras (pestaña Historial →
- * "Conexión con Google Sheets"), junto con el TOKEN de abajo.
+ * Copia la URL /exec y pégala en el sistema de compras (CONFIG.SHEETS_URL).
  *
- * La app manda/pide datos aquí. Cada tipo de registro vive en su propia
- * pestaña (Solicitudes, Ordenes, Evaluaciones, Proveedores) con columnas:
+ * SEGURIDAD (mismo patrón que SEADB):
+ *   • YA NO existe un token secreto en el HTML. El acceso se controla al 100%
+ *     por cuenta de Google (OAuth): el frontend manda el id_token de Google y
+ *     el backend lo valida contra Google y contra la lista blanca de correos.
+ *   • El Client ID vive en Propiedades del Script (no se codifica aquí).
+ *   • Los correos autorizados viven en la pestaña "Usuarios" de esta misma
+ *     hoja — se editan sin tocar código.
+ *
+ * CONFIGURACIÓN (una sola vez, ver apps-script/INSTRUCCIONES.md):
+ *   1. Editor de Apps Script → ⚙ Configuración del proyecto → Propiedades del
+ *      script → añade la propiedad GOOGLE_CLIENT_ID con tu Client ID de OAuth
+ *      (el mismo de auth.js: ...apps.googleusercontent.com).
+ *   2. Ejecuta una vez la función crearHojaUsuarios() para crear la pestaña
+ *      "Usuarios" y sembrar tu correo. Luego agrega/quita correos ahí.
+ *
+ * Cada tipo de registro vive en su propia pestaña (Solicitudes, Ordenes,
+ * Evaluaciones, Proveedores) con columnas:
  *   clave | fecha | resumen | json | actualizado
  * "json" guarda el registro completo (fuente de verdad); las demás columnas
  * son para que tú puedas leer/filtrar la hoja a simple vista.
  */
 
-// ⚠️ CAMBIA ESTE TOKEN por una palabra secreta tuya y ponla igual en la app.
-var TOKEN = 'CAMBIA-ESTE-TOKEN';
-
-// ── (OPCIONAL) Restringir acceso por correo de Google (OAuth) ──────────────
-// Si dejas ALLOWED_EMAILS vacío [], solo se pide el token de arriba.
-// Si pones correos, ADEMÁS del token se exige iniciar sesión con Google y que
-// el correo esté en esta lista. Pega el mismo Client ID que configures en la app.
-var CLIENT_ID = '';              // ej. '1234-abc.apps.googleusercontent.com'
-var ALLOWED_EMAILS = [           // correos de Gmail/Workspace autorizados
-  // 'eduwin.ejecutiva@gmail.com',
-  // 'eduardo.campos@ejecutivaambiental.com',
-];
-
+// ── Configuración de pestañas de datos ─────────────────────────────────────
 var TABS = {
   solicitud:  'Solicitudes',
   orden:      'Ordenes',
@@ -33,6 +35,12 @@ var TABS = {
   proveedor:  'Proveedores'
 };
 var HEADERS = ['clave', 'fecha', 'resumen', 'json', 'actualizado'];
+
+// ── Configuración de seguridad ─────────────────────────────────────────────
+var SHEET_USUARIOS = 'Usuarios';                 // pestaña con la lista blanca
+var USUARIOS_HEADERS = ['correo', 'nombre', 'activo', 'alta'];
+// Correo(s) que se siembran al crear la pestaña Usuarios por primera vez.
+var USUARIOS_INICIALES = ['eduwin.ejecutiva@gmail.com'];
 
 function doGet(e)  { return handle(e, (e.parameter || {})); }
 function doPost(e) {
@@ -43,12 +51,25 @@ function doPost(e) {
 
 function handle(e, params) {
   try {
-    if (String(params.token) !== String(TOKEN)) return json({ ok: false, error: 'Token inválido' });
     var action = params.action;
-    if (action === 'ping')   return json({ ok: true, service: 'EA Compras', time: new Date().toISOString(), authRequired: ALLOWED_EMAILS.length > 0 });
-    // Segunda capa (opcional): correo de Google autorizado
-    var auth = verifyAuth(params);
-    if (!auth.ok) return json(auth);
+
+    // ── Ping público: no expone datos, sólo confirma que el backend vive ──
+    if (action === 'ping') {
+      return json({ ok: true, service: 'EA Compras', time: new Date().toISOString(), authRequired: true });
+    }
+
+    // ── Verificar id_token de Google + lista blanca (obligatorio) ──
+    var auth = verificarAcceso(params.id_token);
+
+    // Contrato que espera auth.js (SEAAuth) para bloquear la app antes de cargar.
+    if (action === 'verificarAcceso') {
+      if (auth.ok) return json({ success: true, email: auth.email });
+      return json({ success: false, error: 'AUTH_REQUIRED', message: auth.error });
+    }
+
+    // Para el resto de acciones: si no está autorizado, cortar aquí.
+    if (!auth.ok) return json({ ok: false, authRequired: true, error: auth.error });
+
     if (action === 'pull')   return json({ ok: true, data: pullAll() });
     if (action === 'add')    return json(addRecord(params.collection, params.record || {}));
     if (action === 'upsert') return json(upsertRecord(params.collection, params.record || {}));
@@ -63,31 +84,112 @@ function json(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+//  SEGURIDAD — OAuth Google + lista blanca
+// ═══════════════════════════════════════════════════════════════════════════
+
 /**
- * Verifica el inicio de sesión con Google (OAuth) contra la lista blanca.
- * Si ALLOWED_EMAILS está vacío, no restringe (solo aplica el token).
- * Valida el idToken con Google (tokeninfo): audiencia, expiración, correo
- * verificado y que el correo esté autorizado.
+ * Verifica que el id_token sea válido (emitido por Google, para NUESTRO
+ * Client ID, no expirado, correo verificado) y que el correo esté en la lista
+ * blanca de la pestaña "Usuarios". Devuelve { ok, email } o { ok:false, error }.
  */
-function verifyAuth(params) {
-  if (!ALLOWED_EMAILS || ALLOWED_EMAILS.length === 0) return { ok: true };
-  var idToken = params.idToken;
-  if (!idToken) return { ok: false, error: 'Debes iniciar sesión con Google.', authRequired: true };
+function verificarAcceso(idToken) {
+  var info = verificarIdToken_(idToken);
+  if (!info) return { ok: false, error: 'Debes iniciar sesión con Google.' };
+  if (!usuarioAutorizado_(info.email)) {
+    return { ok: false, error: 'Acceso no autorizado para ' + info.email };
+  }
+  return { ok: true, email: info.email };
+}
+
+/**
+ * Valida el id_token contra Google (tokeninfo). Usa CacheService 10 min para no
+ * llamar a Google en cada request. Devuelve { email, name, sub } o null.
+ */
+function verificarIdToken_(idToken) {
+  if (!idToken || typeof idToken !== 'string' || idToken.length < 100) return null;
+
+  var cacheKey = 'idtok_' + idToken.slice(-32);
+  var cache = CacheService.getScriptCache();
+  var cached = cache.get(cacheKey);
+  if (cached) { try { return JSON.parse(cached); } catch (_) {} }
+
   try {
-    var resp = UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(idToken), { muteHttpExceptions: true });
-    var info = JSON.parse(resp.getContentText());
-    if (info.error || info.error_description) return { ok: false, error: 'Sesión de Google inválida.', authRequired: true };
-    if (CLIENT_ID && String(info.aud) !== String(CLIENT_ID)) return { ok: false, error: 'El Client ID no coincide.', authRequired: true };
-    if (Number(info.exp) * 1000 < Date.now()) return { ok: false, error: 'Tu sesión de Google expiró, inicia sesión de nuevo.', authRequired: true };
-    if (!(info.email_verified === 'true' || info.email_verified === true)) return { ok: false, error: 'El correo de Google no está verificado.', authRequired: true };
-    var email = String(info.email || '').toLowerCase();
-    var allowed = ALLOWED_EMAILS.map(function (e) { return String(e).toLowerCase().trim(); });
-    if (allowed.indexOf(email) < 0) return { ok: false, error: 'Acceso no autorizado para ' + email, authRequired: true };
-    return { ok: true, email: email };
+    var url = 'https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(idToken);
+    var resp = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+    if (resp.getResponseCode() !== 200) return null;
+
+    var data = JSON.parse(resp.getContentText());
+    if (data.error || data.error_description) return null;
+
+    // La audiencia debe ser NUESTRO Client ID (bloquea tokens de otras apps).
+    var CLIENT_ID = PropertiesService.getScriptProperties().getProperty('GOOGLE_CLIENT_ID');
+    if (!CLIENT_ID) { Logger.log('Falta la propiedad GOOGLE_CLIENT_ID'); return null; }
+    if (String(data.aud) !== String(CLIENT_ID)) {
+      Logger.log('Token rechazado: aud=' + data.aud + ' esperado=' + CLIENT_ID);
+      return null;
+    }
+    if (Number(data.exp) * 1000 < Date.now()) return null;
+    if (!(data.email_verified === 'true' || data.email_verified === true)) return null;
+
+    var userInfo = { email: String(data.email || '').toLowerCase(), name: data.name || '', sub: data.sub || '' };
+    var ttl = Math.min(600, Math.max(5, Number(data.exp) - Math.floor(Date.now() / 1000) - 60));
+    cache.put(cacheKey, JSON.stringify(userInfo), ttl);
+    return userInfo;
   } catch (e) {
-    return { ok: false, error: 'No se pudo validar el inicio de sesión de Google.', authRequired: true };
+    Logger.log('verificarIdToken_ error: ' + e.message);
+    return null;
   }
 }
+
+/**
+ * ¿El correo está activo en la pestaña "Usuarios"?
+ * Columnas: correo | nombre | activo | alta. "activo" acepta vacío/sí/true/1.
+ */
+function usuarioAutorizado_(email) {
+  if (!email) return false;
+  var emailLower = String(email).toLowerCase().trim();
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(SHEET_USUARIOS);
+  if (!sh) return false;                       // sin lista → nadie autorizado (falla cerrado)
+  var last = sh.getLastRow();
+  if (last < 2) return false;
+  var values = sh.getRange(2, 1, last - 1, 3).getValues(); // correo | nombre | activo
+  for (var i = 0; i < values.length; i++) {
+    var correo = String(values[i][0] || '').toLowerCase().trim();
+    if (correo !== emailLower) continue;
+    var activo = String(values[i][2] == null ? '' : values[i][2]).toLowerCase().trim();
+    var inactivo = (activo === 'no' || activo === 'false' || activo === '0' || activo === 'inactivo');
+    return !inactivo;                          // vacío / sí / true / 1 → autorizado
+  }
+  return false;
+}
+
+/**
+ * Crea (o repara) la pestaña "Usuarios" con encabezados y siembra el/los
+ * correo(s) inicial(es). Ejecuta esta función UNA vez desde el editor de GAS.
+ */
+function crearHojaUsuarios() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(SHEET_USUARIOS);
+  if (!sh) sh = ss.insertSheet(SHEET_USUARIOS);
+  if (sh.getLastRow() === 0) sh.appendRow(USUARIOS_HEADERS);
+  var existentes = {};
+  if (sh.getLastRow() > 1) {
+    sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues().forEach(function (r) {
+      existentes[String(r[0] || '').toLowerCase().trim()] = true;
+    });
+  }
+  USUARIOS_INICIALES.forEach(function (correo) {
+    var c = String(correo).toLowerCase().trim();
+    if (c && !existentes[c]) sh.appendRow([c, '', 'sí', new Date().toISOString()]);
+  });
+  return 'Pestaña "' + SHEET_USUARIOS + '" lista. Agrega o quita correos ahí.';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  DATOS
+// ═══════════════════════════════════════════════════════════════════════════
 
 function getSheet(collection) {
   var name = TABS[collection];
