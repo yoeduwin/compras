@@ -1035,6 +1035,27 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
                             <span>Estado: <span id="sync-status" class="pill pill-gray">Desactivada</span></span>
                             <span id="sync-pend" class="hint" style="margin-left:auto;">Todo sincronizado</span>
                         </div>
+
+                        <div style="margin-top:1.5rem; border-top:1px dashed #ced4da; padding-top:1.2rem;">
+                            <div style="font-weight:600; color:var(--verde); margin-bottom:.5rem;">🔒 Restringir acceso por correo de Gmail (OAuth · opcional)</div>
+                            <p style="font-size:0.88rem; color:#555; margin-bottom:1rem;">
+                                Si activas esto, además del token cada persona deberá <strong>iniciar sesión con Google</strong> y su correo
+                                deberá estar en la lista blanca del Apps Script (<code>ALLOWED_EMAILS</code>). Necesitas un
+                                <strong>Client ID de OAuth</strong> (el mismo de tu proyecto en Google Cloud). Déjalo en blanco para no restringir.
+                            </p>
+                            <div class="form-grid" style="padding:0;">
+                                <div class="form-group full-width">
+                                    <label for="sync-clientid">Client ID de Google (OAuth)</label>
+                                    <input type="text" id="sync-clientid" placeholder="1234567890-abcdefg.apps.googleusercontent.com">
+                                </div>
+                            </div>
+                            <div class="backup-bar" style="margin-top:1rem;">
+                                <button class="btn btn-primary" onclick="initGoogleAuth()">🔑 Iniciar sesión con Google</button>
+                                <span id="google-btn"></span>
+                                <button class="btn btn-secondary" id="btn-signout" style="display:none;" onclick="cerrarSesionGoogle()">Cerrar sesión</button>
+                                <span id="auth-email" class="pill pill-gray">Restricción por correo desactivada</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -1204,10 +1225,17 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     //  SINCRONIZACIÓN CON GOOGLE SHEETS (Apps Script)
     // ============================================================
     const SYNC_KEY = 'eaSyncCfg';
-    let SYNC = { url: '', token: '', enabled: false };
-    function loadSync() { try { SYNC = Object.assign(SYNC, JSON.parse(localStorage.getItem(SYNC_KEY)) || {}); } catch (e) {} }
+    let SYNC = { url: '', token: '', enabled: false, clientId: '' };
+    let AUTH = { idToken: '', email: '' };
+    function loadSync() {
+        try { SYNC = Object.assign(SYNC, JSON.parse(localStorage.getItem(SYNC_KEY)) || {}); } catch (e) {}
+        try { AUTH = Object.assign(AUTH, JSON.parse(localStorage.getItem('eaAuth')) || {}); } catch (e) {}
+    }
     function saveSync() { localStorage.setItem(SYNC_KEY, JSON.stringify(SYNC)); }
+    function saveAuth() { localStorage.setItem('eaAuth', JSON.stringify(AUTH)); }
     function syncOn() { return SYNC.enabled && SYNC.url && SYNC.token; }
+    function authRequired() { return !!SYNC.clientId; }
+    function authReady() { return !authRequired() || !!AUTH.idToken; }
 
     async function fetchTimeout(url, opts = {}, ms = 20000) {
         const ctrl = new AbortController();
@@ -1216,14 +1244,21 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         finally { clearTimeout(t); }
     }
     async function apiGet(action) {
-        const u = SYNC.url + (SYNC.url.includes('?') ? '&' : '?') + 'action=' + action + '&token=' + encodeURIComponent(SYNC.token);
+        let u = SYNC.url + (SYNC.url.includes('?') ? '&' : '?') + 'action=' + action + '&token=' + encodeURIComponent(SYNC.token);
+        if (AUTH.idToken) u += '&idToken=' + encodeURIComponent(AUTH.idToken);
         const r = await fetchTimeout(u, { method: 'GET' });
-        return await r.json();
+        const res = await r.json();
+        if (res && res.authRequired && res.ok === false) { AUTH.idToken = ''; saveAuth(); actualizarAuthUI(); }
+        return res;
     }
     async function apiPost(payload) {
         // text/plain evita el "preflight" CORS con Apps Script
-        const r = await fetchTimeout(SYNC.url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ ...payload, token: SYNC.token }) });
-        return await r.json();
+        const body = { ...payload, token: SYNC.token };
+        if (AUTH.idToken) body.idToken = AUTH.idToken;
+        const r = await fetchTimeout(SYNC.url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body) });
+        const res = await r.json();
+        if (res && res.authRequired && res.ok === false) { AUTH.idToken = ''; saveAuth(); actualizarAuthUI(); }
+        return res;
     }
     function setSyncStatus(txt, cls) {
         const el = document.getElementById('sync-status'); if (!el) return;
@@ -1266,6 +1301,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     }
     async function sincronizarAhora(silent) {
         if (!syncOn()) { if (!silent) showToast('Configura la conexión con Google Sheets primero', 'warning'); return; }
+        if (authRequired() && !AUTH.idToken) { setSyncStatus('Inicia sesión con Google', 'pill-amber'); if (!silent) showToast('Inicia sesión con Google para sincronizar', 'warning'); return; }
         setSyncStatus('Sincronizando…', 'pill-amber');
         try {
             const flushed = await flushPending();
@@ -1299,6 +1335,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     async function probarConexion() {
         SYNC.url = document.getElementById('sync-url').value.trim();
         SYNC.token = document.getElementById('sync-token').value.trim();
+        SYNC.clientId = document.getElementById('sync-clientid').value.trim();
         if (!SYNC.url || !SYNC.token) { showToast('Ingresa la URL y el token', 'warning'); return; }
         setSyncStatus('Probando…', 'pill-amber');
         try {
@@ -1307,6 +1344,8 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
             SYNC.enabled = true; saveSync();
             document.getElementById('sync-enabled').checked = true;
             setSyncStatus('Conectado ✓', 'pill-green');
+            actualizarAuthUI();
+            if (res.authRequired && !AUTH.idToken) { showToast('Conexión OK. Ahora inicia sesión con Google para el acceso.', 'info'); return; }
             showToast('Conexión exitosa. Sincronizando…', 'success');
             await sincronizarAhora(true);
         } catch (e) {
@@ -1318,9 +1357,62 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         SYNC.enabled = chk.checked;
         SYNC.url = document.getElementById('sync-url').value.trim();
         SYNC.token = document.getElementById('sync-token').value.trim();
+        SYNC.clientId = document.getElementById('sync-clientid').value.trim();
         saveSync();
         setSyncStatus(syncOn() ? 'Activada' : 'Desactivada', syncOn() ? 'pill-green' : 'pill-gray');
+        if (syncOn() && authReady()) sincronizarAhora(true);
+    }
+
+    // ── Inicio de sesión con Google (OAuth) para restringir por correo ──
+    let _gisLoaded = false;
+    function cargarGIS() {
+        return new Promise((resolve, reject) => {
+            if (_gisLoaded && window.google && google.accounts) return resolve();
+            const s = document.createElement('script');
+            s.src = 'https://accounts.google.com/gsi/client';
+            s.async = true; s.defer = true;
+            s.onload = () => { _gisLoaded = true; resolve(); };
+            s.onerror = () => reject(new Error('No se pudo cargar Google Sign-In (¿sin internet?)'));
+            document.head.appendChild(s);
+        });
+    }
+    function decodeJwt(jwt) {
+        try { const p = jwt.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'); return JSON.parse(decodeURIComponent(escape(atob(p)))); }
+        catch (e) { return {}; }
+    }
+    async function initGoogleAuth() {
+        SYNC.clientId = document.getElementById('sync-clientid').value.trim();
+        if (!SYNC.clientId) { showToast('Ingresa primero el Client ID de Google', 'warning'); return; }
+        saveSync();
+        try {
+            await cargarGIS();
+            google.accounts.id.initialize({ client_id: SYNC.clientId, callback: onGoogleCredential, auto_select: false });
+            google.accounts.id.prompt();
+            // botón de respaldo por si el prompt se bloquea
+            const cont = document.getElementById('google-btn'); if (cont) { cont.innerHTML = ''; google.accounts.id.renderButton(cont, { theme: 'outline', size: 'large', text: 'signin_with', locale: 'es' }); }
+        } catch (e) { showToast(e.message, 'error'); }
+    }
+    function onGoogleCredential(resp) {
+        const payload = decodeJwt(resp.credential || '');
+        AUTH.idToken = resp.credential || ''; AUTH.email = payload.email || '';
+        saveAuth(); actualizarAuthUI();
+        showToast('Sesión iniciada: ' + AUTH.email, 'success');
         if (syncOn()) sincronizarAhora(true);
+    }
+    function cerrarSesionGoogle() {
+        AUTH = { idToken: '', email: '' }; saveAuth(); actualizarAuthUI();
+        try { if (window.google && google.accounts) google.accounts.id.disableAutoSelect(); } catch (e) {}
+        showToast('Sesión de Google cerrada', 'info');
+    }
+    function actualizarAuthUI() {
+        const badge = document.getElementById('auth-email');
+        const btnOut = document.getElementById('btn-signout');
+        if (badge) {
+            if (AUTH.email) { badge.textContent = 'Sesión: ' + AUTH.email; badge.className = 'pill pill-green'; }
+            else if (authRequired()) { badge.textContent = 'Sin iniciar sesión'; badge.className = 'pill pill-amber'; }
+            else { badge.textContent = 'Restricción por correo desactivada'; badge.className = 'pill pill-gray'; }
+        }
+        if (btnOut) btnOut.style.display = AUTH.email ? 'inline-flex' : 'none';
     }
 
     // ============================================================
@@ -2175,12 +2267,14 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     }
     function initSyncUI() {
         loadSync();
-        const u = document.getElementById('sync-url'), t = document.getElementById('sync-token'), c = document.getElementById('sync-enabled');
+        const u = document.getElementById('sync-url'), t = document.getElementById('sync-token'), c = document.getElementById('sync-enabled'), ci = document.getElementById('sync-clientid');
         if (u) u.value = SYNC.url || '';
         if (t) t.value = SYNC.token || '';
+        if (ci) ci.value = SYNC.clientId || '';
         if (c) c.checked = !!SYNC.enabled;
         setSyncStatus(syncOn() ? 'Activada' : 'Desactivada', syncOn() ? 'pill-green' : 'pill-gray');
         actualizarPendientes();
+        actualizarAuthUI();
     }
     document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('logo-badge').innerHTML = LOGO_SVG;
