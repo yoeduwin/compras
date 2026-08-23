@@ -142,6 +142,13 @@ ni conexión).
   seguridad adicional.
 - **¿Cambié el `Code.gs`?** Cada vez que lo edites: **Implementar → Administrar
   implementaciones → editar (lápiz) → Versión: Nueva → Implementar**.
+- **¿Qué series maneja?** Laboratorio usa `SC` (solicitud) y `OC` (orden);
+  empresa usa `REQ` y `OCB`. Cada serie lleva su propio consecutivo por año y
+  todas se calculan en la hoja. El sistema pregunta el ámbito antes de capturar.
+- **¿Por qué me pide un permiso nuevo al re-implementar?** El envío de
+  documentos por correo usa `GmailApp`: la primera vez Google pide autorizar
+  el permiso de envío. Los correos salen de la cuenta dueña del script y la
+  respuesta llega a quien lo envió desde el sistema (`Responder a`).
 - **¿De dónde salen los folios?** Siempre de la hoja. El servidor los calcula
   bajo candado (`LockService`) al dar de alta, y la acción `nextFolio` sirve
   para mostrar la vista previa en el formulario. El navegador ya no inventa
