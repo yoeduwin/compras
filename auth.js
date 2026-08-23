@@ -315,6 +315,10 @@ const SEAAuth = (() => {
   return { init, logout, getToken, isExpired, wrapFetch };
 })();
 
+// `const` de nivel superior NO crea propiedad en window: se expone a mano para
+// que cualquier página pueda comprobar `window.SEAAuth` sin fallar.
+window.SEAAuth = SEAAuth;
+
 /**
  * Llamado automáticamente por el script de Google Identity Services al cargar.
  * No renombrar — es el callback del atributo onload del <script> de GIS.

@@ -142,6 +142,10 @@ ni conexión).
   seguridad adicional.
 - **¿Cambié el `Code.gs`?** Cada vez que lo edites: **Implementar → Administrar
   implementaciones → editar (lápiz) → Versión: Nueva → Implementar**.
+- **¿De dónde salen los folios?** Siempre de la hoja. El servidor los calcula
+  bajo candado (`LockService`) al dar de alta, y la acción `nextFolio` sirve
+  para mostrar la vista previa en el formulario. El navegador ya no inventa
+  consecutivos: si no hay conexión con la hoja, no se guarda el registro.
 - **¿Por qué el Client ID está a la vista?** Porque Google lo diseñó público:
   identifica a la app, no autoriza nada por sí solo. Lo que protege es la
   verificación del id_token + la lista blanca, ambas en el servidor.

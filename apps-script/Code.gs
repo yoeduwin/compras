@@ -71,6 +71,7 @@ function handle(e, params) {
     if (!auth.ok) return json({ ok: false, authRequired: true, error: auth.error });
 
     if (action === 'pull')   return json({ ok: true, data: pullAll() });
+    if (action === 'nextFolio') return json(nextFolio(params.collection, params.year));
     if (action === 'add')    return json(addRecord(params.collection, params.record || {}));
     if (action === 'upsert') return json(upsertRecord(params.collection, params.record || {}));
     if (action === 'delete') return json(deleteRecord(params.collection, params.key));
@@ -287,23 +288,39 @@ function rowFor(collection, record) {
            JSON.stringify(record), new Date().toISOString() ];
 }
 
+/**
+ * Siguiente folio consecutivo del año, calculado SIEMPRE leyendo la hoja.
+ * Es la única fuente de verdad de la numeración (el navegador no la inventa).
+ */
+function nextFolio_(collection, year) {
+  var prefix = collection === 'solicitud' ? 'SC' : 'OC';
+  var yy = String(year).slice(-2);
+  var re = new RegExp('^' + prefix + '-' + yy + '-(\\d+)$');
+  var max = 0;
+  readCollection(collection).forEach(function (r) {
+    var m = re.exec(r.folio || '');
+    if (m) { var n = parseInt(m[1], 10); if (n > max) max = n; }
+  });
+  return prefix + '-' + yy + '-' + ('00' + (max + 1)).slice(-3);
+}
+
+/** Acción 'nextFolio': vista previa del consecutivo. Sólo lee, no escribe. */
+function nextFolio(collection, year) {
+  if (collection !== 'solicitud' && collection !== 'orden') {
+    return { ok: false, error: 'Colección sin folio: ' + collection };
+  }
+  var y = parseInt(year, 10) || new Date().getFullYear();
+  return { ok: true, collection: collection, year: y, folio: nextFolio_(collection, y) };
+}
+
 /** Inserta asignando folio consecutivo por año (SC/OC). Usa Lock para evitar choques. */
 function addRecord(collection, record) {
   var lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
     if (collection === 'solicitud' || collection === 'orden') {
-      var prefix = collection === 'solicitud' ? 'SC' : 'OC';
       var year = (record.fecha ? new Date(record.fecha + 'T00:00:00').getFullYear() : new Date().getFullYear());
-      var yy = String(year).slice(-2);
-      var existentes = readCollection(collection);
-      var max = 0;
-      var re = new RegExp('^' + prefix + '-' + yy + '-(\\d+)$');
-      existentes.forEach(function (r) {
-        var m = re.exec(r.folio || '');
-        if (m) { var n = parseInt(m[1], 10); if (n > max) max = n; }
-      });
-      record.folio = prefix + '-' + yy + '-' + ('00' + (max + 1)).slice(-3);
+      record.folio = nextFolio_(collection, year);
     }
     var sh = getSheet(collection);
     var existingRow = findRow(sh, keyOf(collection, record));

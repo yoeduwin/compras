@@ -1194,6 +1194,36 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         DB.counters[tipo][y] = (DB.counters[tipo][y] || 0) + 1;
         saveDB();
     }
+    // Folio del servidor: con la hoja conectada, el consecutivo SIEMPRE lo decide
+    // Google Sheets. El contador local sólo existe para el modo sin hoja (CONFIG vacío).
+    async function folioServidor(tipo, year) {
+        const res = await apiPost({ action: 'nextFolio', collection: tipo, year: String(year) });
+        if (!res || !res.ok || !res.folio) throw new Error((res && res.error) || 'el servidor no devolvió folio');
+        return res.folio;
+    }
+    // Pinta la vista previa del folio en los formularios. Con hoja conectada el campo
+    // es de sólo lectura: lo que valga al guardar lo dicta el servidor.
+    async function refrescarFolios() {
+        const campos = [['solicitud', 'folio-solicitud', 'fecha-solicitud'], ['orden', 'num-orden', 'fecha-orden']];
+        for (const [tipo, id, idFecha] of campos) {
+            const el = document.getElementById(id);
+            if (!el) continue;
+            const f = document.getElementById(idFecha);
+            const year = (f && f.value) ? new Date(f.value + 'T00:00:00').getFullYear() : new Date().getFullYear();
+            if (!syncOn()) { el.readOnly = false; el.placeholder = ''; el.value = peekFolio(tipo, year); continue; }
+            el.readOnly = true;
+            if (!authReady()) { el.value = ''; el.placeholder = 'Inicie sesión con Google para obtener el folio'; continue; }
+            el.value = ''; el.placeholder = 'Consultando folio en la hoja…';
+            try {
+                el.value = await folioServidor(tipo, year);
+                el.placeholder = '';
+            } catch (e) {
+                console.error(e);
+                el.value = '';
+                el.placeholder = 'Sin conexión con la hoja — el folio se asigna al guardar';
+            }
+        }
+    }
     // Recalcula los contadores locales a partir de los folios existentes (máximo por año)
     function recomputeCounters() {
         const c = { solicitud: {}, orden: {} };
@@ -1219,7 +1249,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     // Con base compartida configurada, el acceso SIEMPRE exige cuenta de Google.
     function syncOn() { return !!SYNC.url; }
     function authRequired() { return syncOn(); }
-    function authReady() { return !authRequired() || (window.SEAAuth && !SEAAuth.isExpired(SEAAuth.getToken())); }
+    function authReady() { return !authRequired() || (typeof SEAAuth !== 'undefined' && !SEAAuth.isExpired(SEAAuth.getToken())); }
 
     // Todas las llamadas pasan por SEAAuth.wrapFetch: inyecta el id_token de
     // Google en el body (nunca en la URL) y fuerza re-login si expiró.
@@ -1519,43 +1549,41 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         if (!fecha || !area || !descripcion) { showToast('Complete fecha, área y descripción', 'error'); return; }
 
         const year = new Date(fecha + 'T00:00:00').getFullYear();
-        const folio = document.getElementById('folio-solicitud').value.trim() || peekFolio('solicitud', year);
         const rec = {
-            folio, fecha, area, tipo,
+            folio: '', fecha, area, tipo,
             descripcion,
             proveedores: document.getElementById('proveedores-sugeridos').value.trim(),
             solicito: valSelect('solicito', 'solicito-otro'),
             autorizo: valSelect('autorizo-sol', 'autorizo-sol-otro'),
             estado: 'Generada', createdAt: new Date().toISOString()
         };
-        const idx = DB.solicitudes.findIndex(s => s.folio === folio);
-        const editando = idx >= 0;
-        if (!editando) {
-            const dup = duplicadoReciente(DB.solicitudes, s => s.area === area && s.tipo === tipo && s.descripcion === descripcion);
-            if (dup && !confirm(`Ya se generó la solicitud ${dup.folio} con estos mismos datos hace unos minutos.\n\n¿Desea crear otra solicitud nueva?`)) {
-                generarPDFSolicitud(dup);
-                showToast('Se volvió a generar el PDF de ' + dup.folio, 'info');
-                return;
-            }
+        const dup = duplicadoReciente(DB.solicitudes, s => s.area === area && s.tipo === tipo && s.descripcion === descripcion);
+        if (dup && !confirm(`Ya se generó la solicitud ${dup.folio} con estos mismos datos hace unos minutos.\n\n¿Desea crear otra solicitud nueva?`)) {
+            generarPDFSolicitud(dup);
+            showToast('Se volvió a generar el PDF de ' + dup.folio, 'info');
+            return;
         }
-        // Si Sheets está activo, el servidor asigna el folio consecutivo (autoritativo, sin choques entre equipos)
+        // Con la hoja conectada el folio lo asigna el servidor bajo candado. Si no hay
+        // conexión NO se guarda nada: inventar un folio local es lo que duplicaba números.
         if (syncOn()) {
-            try {
-                if (editando) { const res = await apiPost({ action: 'upsert', collection: 'solicitud', record: rec }); if (!res.ok) throw new Error(res.error); }
-                else { const res = await apiPost({ action: 'add', collection: 'solicitud', record: { ...rec, folio: undefined } }); if (!res.ok) throw new Error(res.error); rec.folio = res.record.folio; }
-            } catch (e) {
-                if (!editando) { rec.folio = folio; commitFolio('solicitud', year); }
-                enqueue(editando ? { action: 'upsert', collection: 'solicitud', record: rec } : { action: 'add', collection: 'solicitud', record: rec });
-                showToast('Guardado local (sin conexión). Se sincronizará después.', 'warning');
-            }
-        } else if (!editando) { commitFolio('solicitud', year); }
-        if (editando) DB.solicitudes[idx] = rec; else DB.solicitudes.push(rec);
+            let res;
+            try { res = await apiPost({ action: 'add', collection: 'solicitud', record: { ...rec, folio: undefined } }); }
+            catch (e) { console.error(e); showToast('Sin conexión con la hoja: no se guardó nada. El folio lo asigna el servidor, vuelva a intentar.', 'error'); return; }
+            if (!res.ok || !res.record || !res.record.folio) { showToast('El servidor no asignó folio: ' + (res.error || 'error desconocido'), 'error'); return; }
+            rec.folio = res.record.folio;
+            DB.solicitudes.push(rec);
+        } else {
+            rec.folio = document.getElementById('folio-solicitud').value.trim() || peekFolio('solicitud', year);
+            const idx = DB.solicitudes.findIndex(s => s.folio === rec.folio);
+            if (idx >= 0) DB.solicitudes[idx] = rec;
+            else { commitFolio('solicitud', year); DB.solicitudes.push(rec); }
+        }
         recomputeCounters(); saveDB();
         // El registro ya quedó guardado: si el PDF falla, se avisa pero no se
         // pierde el folio ni se corta la actualización de la pantalla.
         let pdfOk = true;
         try { generarPDFSolicitud(rec); } catch (e) { console.error(e); pdfOk = false; }
-        document.getElementById('folio-solicitud').value = peekFolio('solicitud', new Date().getFullYear());
+        refrescarFolios();
         renderHistorial();
         // Un solo mensaje final: el toast es único y el de éxito taparía al de error.
         if (pdfOk) showToast('Solicitud ' + rec.folio + ' guardada en el historial', 'success');
@@ -1681,11 +1709,10 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         if (articulos.length === 0) { showToast('Agregue al menos un artículo', 'error'); return; }
 
         const year = new Date(fecha + 'T00:00:00').getFullYear();
-        const folio = document.getElementById('num-orden').value.trim() || peekFolio('orden', year);
         const t = calcularTotales();
         const esConfiable = DB.proveedores.some(p => p.nombre.trim().toLowerCase() === proveedor.toLowerCase());
         const rec = {
-            folio, fecha, proveedor, proveedorConfiable: esConfiable,
+            folio: '', fecha, proveedor, proveedorConfiable: esConfiable,
             cliente: document.getElementById('cliente').value.trim(),
             telefono: document.getElementById('telefono').value.trim(),
             direccion: document.getElementById('direccion').value.trim(),
@@ -1699,33 +1726,32 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
             autorizo: valSelect('autorizo-orden', 'autorizo-orden-otro'),
             estado: 'Generada', createdAt: new Date().toISOString()
         };
-        const idx = DB.ordenes.findIndex(o => o.folio === folio);
-        const editando = idx >= 0;
-        if (!editando) {
-            const dup = duplicadoReciente(DB.ordenes, o => o.proveedor === proveedor && o.fecha === fecha && Math.abs((o.total || 0) - t.total) < 0.01);
-            if (dup && !confirm(`Ya se generó la orden ${dup.folio} para ${proveedor} con el mismo total hace unos minutos.\n\n¿Desea crear otra orden nueva?`)) {
-                generarPDFOrden(dup);
-                showToast('Se volvió a generar el PDF de ' + dup.folio, 'info');
-                return;
-            }
+        const dup = duplicadoReciente(DB.ordenes, o => o.proveedor === proveedor && o.fecha === fecha && Math.abs((o.total || 0) - t.total) < 0.01);
+        if (dup && !confirm(`Ya se generó la orden ${dup.folio} para ${proveedor} con el mismo total hace unos minutos.\n\n¿Desea crear otra orden nueva?`)) {
+            generarPDFOrden(dup);
+            showToast('Se volvió a generar el PDF de ' + dup.folio, 'info');
+            return;
         }
+        // Igual que en solicitudes: el consecutivo sale de la hoja o no se guarda.
         if (syncOn()) {
-            try {
-                if (editando) { const res = await apiPost({ action: 'upsert', collection: 'orden', record: rec }); if (!res.ok) throw new Error(res.error); }
-                else { const res = await apiPost({ action: 'add', collection: 'orden', record: { ...rec, folio: undefined } }); if (!res.ok) throw new Error(res.error); rec.folio = res.record.folio; }
-            } catch (e) {
-                if (!editando) { rec.folio = folio; commitFolio('orden', year); }
-                enqueue(editando ? { action: 'upsert', collection: 'orden', record: rec } : { action: 'add', collection: 'orden', record: rec });
-                showToast('Guardado local (sin conexión). Se sincronizará después.', 'warning');
-            }
-        } else if (!editando) { commitFolio('orden', year); }
-        if (editando) DB.ordenes[idx] = rec; else DB.ordenes.push(rec);
+            let res;
+            try { res = await apiPost({ action: 'add', collection: 'orden', record: { ...rec, folio: undefined } }); }
+            catch (e) { console.error(e); showToast('Sin conexión con la hoja: no se guardó nada. El folio lo asigna el servidor, vuelva a intentar.', 'error'); return; }
+            if (!res.ok || !res.record || !res.record.folio) { showToast('El servidor no asignó folio: ' + (res.error || 'error desconocido'), 'error'); return; }
+            rec.folio = res.record.folio;
+            DB.ordenes.push(rec);
+        } else {
+            rec.folio = document.getElementById('num-orden').value.trim() || peekFolio('orden', year);
+            const idx = DB.ordenes.findIndex(o => o.folio === rec.folio);
+            if (idx >= 0) DB.ordenes[idx] = rec;
+            else { commitFolio('orden', year); DB.ordenes.push(rec); }
+        }
         // marcar solicitud vinculada
         if (rec.solicitudFolio) { const s = DB.solicitudes.find(s => s.folio === rec.solicitudFolio); if (s) { s.estado = 'Con orden'; pushRemote('upsert', 'solicitud', s); } }
         recomputeCounters(); saveDB();
         let pdfOk = true;
         try { generarPDFOrden(rec); } catch (e) { console.error(e); pdfOk = false; }
-        document.getElementById('num-orden').value = peekFolio('orden', new Date().getFullYear());
+        refrescarFolios();
         renderHistorial();
         if (pdfOk) showToast('Orden ' + rec.folio + ' guardada en el historial', 'success');
         else showToast('Orden ' + rec.folio + ' guardada, pero el PDF falló. Use el botón 📄 PDF del historial.', 'error');
@@ -2268,7 +2294,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
             document.getElementById('solicito-otro').style.display = 'none';
             document.getElementById('autorizo-sol-otro').style.display = 'none';
             document.getElementById('fecha-solicitud').value = new Date().toISOString().split('T')[0];
-            document.getElementById('folio-solicitud').value = peekFolio('solicitud', new Date().getFullYear());
+            refrescarFolios();
         } else if (tipo === 'orden') {
             ['proveedor', 'proveedor-confiable', 'condiciones-pago', 'realizo', 'reviso', 'autorizo-orden'].forEach(id => document.getElementById(id).value = '');
             ['realizo-otro', 'reviso-otro', 'autorizo-orden-otro'].forEach(id => document.getElementById(id).style.display = 'none');
@@ -2277,7 +2303,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
             document.getElementById('fecha-orden').value = new Date().toISOString().split('T')[0];
             document.getElementById('tbody-articulos').innerHTML = '';
             agregarFilaArticulo();
-            document.getElementById('num-orden').value = peekFolio('orden', new Date().getFullYear());
+            refrescarFolios();
         } else if (tipo === 'evaluacion') {
             document.getElementById('proveedor-eval').value = '';
             document.getElementById('orden-rel').value = '';
@@ -2296,8 +2322,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         renderHistorial();
         poblarSolicitudesRel();
         poblarOrdenesRel();
-        document.getElementById('folio-solicitud').value = peekFolio('solicitud', new Date().getFullYear());
-        document.getElementById('num-orden').value = peekFolio('orden', new Date().getFullYear());
+        refrescarFolios();
     }
     function initSyncUI() {
         loadSync();
