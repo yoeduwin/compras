@@ -715,6 +715,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 
                 <div class="action-buttons">
                     <button class="btn btn-success" onclick="accionUnica('guardar-solicitud', this, guardarYGenerarSolicitud)">💾 Guardar y Generar PDF</button>
+                    <button class="btn btn-primary" id="btn-mail-sol" onclick="enviarUltimo('sol', this)" disabled>✉️ Enviar por correo</button>
                     <button class="btn btn-secondary" onclick="limpiarFormulario('solicitud')">🗑️ Limpiar Formulario</button>
                 </div>
             </div>
@@ -863,6 +864,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 
                 <div class="action-buttons">
                     <button class="btn btn-success" onclick="accionUnica('guardar-orden', this, guardarYGenerarOrden)">💾 Guardar y Generar PDF</button>
+                    <button class="btn btn-primary" id="btn-mail-ord" onclick="enviarUltimo('ord', this)" disabled>✉️ Enviar por correo</button>
                     <button class="btn btn-secondary" onclick="limpiarFormulario('orden')">🗑️ Limpiar Formulario</button>
                 </div>
             </div>
@@ -973,6 +975,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
                 <div class="action-buttons">
                     <button class="btn btn-primary" onclick="calcularCalificacion()">🧮 Calcular Calificación</button>
                     <button class="btn btn-success" onclick="accionUnica('guardar-evaluacion', this, guardarYGenerarEvaluacion)">💾 Guardar y Generar PDF</button>
+                    <button class="btn btn-primary" id="btn-mail-eval" onclick="enviarUltimo('eval', this)" disabled>✉️ Enviar por correo</button>
                     <button class="btn btn-secondary" onclick="limpiarFormulario('evaluacion')">🗑️ Limpiar Formulario</button>
                 </div>
             </div>
@@ -1113,6 +1116,32 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         </div>
     </div>
 
+    <!-- Envío por correo: destinatarios múltiples + nota opcional -->
+    <div id="modal-correo" class="modal-fondo">
+        <div class="modal-caja">
+            <h3>Enviar por correo</h3>
+            <p id="modal-correo-doc">—</p>
+            <div class="form-grid">
+                <div class="form-group full-width">
+                    <label for="correo-para">Para (separe varios con coma)</label>
+                    <input type="text" id="correo-para" placeholder="nombre@empresa.com, otro@empresa.com">
+                </div>
+                <div class="form-group full-width">
+                    <label for="correo-cc">Con copia</label>
+                    <input type="text" id="correo-cc" placeholder="opcional">
+                </div>
+                <div class="form-group full-width">
+                    <label for="correo-nota">Nota adicional (opcional)</label>
+                    <textarea id="correo-nota" rows="3" placeholder="Se agrega al inicio del mensaje."></textarea>
+                </div>
+            </div>
+            <div class="action-buttons" style="margin-top:1rem; padding-top:1rem;">
+                <button class="btn btn-success" onclick="confirmarCorreo()">✉️ Enviar</button>
+                <button class="btn btn-secondary" onclick="cancelarCorreo()">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
     <div id="toast" class="toast" style="display: none;"></div>
 
     <!-- Autenticación Google OAuth (mismo módulo y Client ID que SEA/SEADB) -->
@@ -1128,7 +1157,10 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     const CONFIG = {
         // URL /exec del Apps Script (ver apps-script/INSTRUCCIONES.md).
         // Déjalo vacío para trabajar solo en este equipo (sin base compartida).
-        SHEETS_URL: 'https://script.google.com/macros/s/AKfycbxhhffp5GqRq_dEoTpk8bzgd31MbigQ6XMsTyqdSBO4FITXDlRU-KW1frMVPyBMjMeY/exec'
+        SHEETS_URL: 'https://script.google.com/macros/s/AKfycbxhhffp5GqRq_dEoTpk8bzgd31MbigQ6XMsTyqdSBO4FITXDlRU-KW1frMVPyBMjMeY/exec',
+        // Destinatarios que se proponen al enviar solicitudes y evaluaciones
+        // por correo. Separados por coma; se pueden editar en cada envío.
+        CORREOS_INTERNOS: 'eduwin.ejecutiva@gmail.com'
         // Ya NO hay token secreto aquí. El acceso se controla por cuenta de
         // Google (OAuth): el Client ID vive en auth.js y la lista de correos
         // autorizados en la pestaña "Usuarios" de la hoja (validación en el
@@ -1338,6 +1370,17 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         showToast('Ámbito: ' + AMBITO_NOMBRE[nuevo].replace(/^\S+\s/, ''), 'info');
     }
 
+    // El folio que devuelve el servidor DEBE pertenecer a la serie del ámbito.
+    // Si no coincide, el Apps Script publicado está desactualizado (no conoce el
+    // ámbito) y hay que re-implementarlo: mejor detenerse que mezclar series.
+    function folioCoincide(tipo, ambito, folio) {
+        return String(folio || '').indexOf(SERIES[tipo][ambito] + '-') === 0;
+    }
+    function avisoBackendViejo(tipo, ambito, folio) {
+        return `El Apps Script publicado no maneja ámbitos: devolvió ${folio} y para ${ambito} corresponde la serie ${SERIES[tipo][ambito]}. ` +
+               'Re-implemente el Apps Script (Implementar → Administrar implementaciones → Versión: Nueva).';
+    }
+
     // Folio del servidor: con la hoja conectada, el consecutivo SIEMPRE lo decide
     // Google Sheets. El contador local sólo existe para el modo sin hoja (CONFIG vacío).
     async function folioServidor(tipo, year, ambito) {
@@ -1361,7 +1404,14 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
             if (!authReady()) { el.value = ''; el.placeholder = 'Inicie sesión con Google para obtener el folio'; continue; }
             el.value = ''; el.placeholder = 'Consultando folio en la hoja…';
             try {
-                el.value = await folioServidor(tipo, year, ambito);
+                const folio = await folioServidor(tipo, year, ambito);
+                if (!folioCoincide(tipo, ambito, folio)) {
+                    el.value = '';
+                    el.placeholder = 'Serie incorrecta: re-implemente el Apps Script';
+                    showToast(avisoBackendViejo(tipo, ambito, folio), 'error');
+                    continue;
+                }
+                el.value = folio;
                 el.placeholder = '';
             } catch (e) {
                 console.error(e);
@@ -1728,6 +1778,13 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
             try { res = await apiPost({ action: 'add', collection: 'solicitud', record: { ...rec, folio: undefined } }); }
             catch (e) { console.error(e); showToast('Sin conexión con la hoja: no se guardó nada. El folio lo asigna el servidor, vuelva a intentar.', 'error'); return; }
             if (!res.ok || !res.record || !res.record.folio) { showToast('El servidor no asignó folio: ' + (res.error || 'error desconocido'), 'error'); return; }
+            if (!folioCoincide('solicitud', ambito, res.record.folio)) {
+                // El backend viejo numeró en la serie equivocada: se retira de la
+                // hoja para no ensuciar la numeración y se avisa qué falta.
+                await apiPost({ action: 'delete', collection: 'solicitud', key: res.record.folio }).catch(() => {});
+                showToast(avisoBackendViejo('solicitud', ambito, res.record.folio), 'error');
+                return;
+            }
             rec.folio = res.record.folio;
             DB.solicitudes.push(rec);
         } else {
@@ -1744,6 +1801,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         refrescarFolios();
         renderHistorial();
         // Un solo mensaje final: el toast es único y el de éxito taparía al de error.
+        marcarUltimo('sol', rec.folio);
         if (pdfOk) showToast('Solicitud ' + rec.folio + ' guardada en el historial', 'success');
         else showToast('Solicitud ' + rec.folio + ' guardada, pero el PDF falló. Use el botón 📄 PDF del historial.', 'error');
     }
@@ -1900,6 +1958,11 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
             try { res = await apiPost({ action: 'add', collection: 'orden', record: { ...rec, folio: undefined } }); }
             catch (e) { console.error(e); showToast('Sin conexión con la hoja: no se guardó nada. El folio lo asigna el servidor, vuelva a intentar.', 'error'); return; }
             if (!res.ok || !res.record || !res.record.folio) { showToast('El servidor no asignó folio: ' + (res.error || 'error desconocido'), 'error'); return; }
+            if (!folioCoincide('orden', ambito, res.record.folio)) {
+                await apiPost({ action: 'delete', collection: 'orden', key: res.record.folio }).catch(() => {});
+                showToast(avisoBackendViejo('orden', ambito, res.record.folio), 'error');
+                return;
+            }
             rec.folio = res.record.folio;
             DB.ordenes.push(rec);
         } else {
@@ -1915,6 +1978,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         try { generarPDFOrden(rec); } catch (e) { console.error(e); pdfOk = false; }
         refrescarFolios();
         renderHistorial();
+        marcarUltimo('ord', rec.folio);
         if (pdfOk) showToast('Orden ' + rec.folio + ' guardada en el historial', 'success');
         else showToast('Orden ' + rec.folio + ' guardada, pero el PDF falló. Use el botón 📄 PDF del historial.', 'error');
     }
@@ -2082,6 +2146,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         let pdfOk = true;
         try { generarPDFEvaluacion(rec); } catch (e) { console.error(e); pdfOk = false; }
         renderHistorial();
+        marcarUltimo('eval', rec.id);
         if (pdfOk) showToast('Evaluación de ' + proveedor + ' guardada', 'success');
         else showToast('Evaluación de ' + proveedor + ' guardada, pero el PDF falló. Use el botón 📄 PDF del historial.', 'error');
     }
@@ -2525,19 +2590,66 @@ Ejecutiva Ambiental
 Tel: 222-941-7295`
         };
     }
+    const RE_CORREO = /^[^@\s,]+@[^@\s,]+\.[^@\s,]+$/;
+    function listaCorreos(txt) {
+        return String(txt || '').split(/[,;]/).map(x => x.trim()).filter(Boolean);
+    }
+    function correosInvalidos(txt) {
+        return listaCorreos(txt).filter(x => !RE_CORREO.test(x));
+    }
+    let _resolverCorreo = null;
+    // Pide destinatarios. Solicitudes y evaluaciones se proponen a los correos
+    // internos (CONFIG.CORREOS_INTERNOS); una orden, al correo del proveedor.
+    function pedirDestinatarios(tipo, r, asunto) {
+        document.getElementById('modal-correo-doc').textContent = asunto;
+        document.getElementById('correo-para').value = tipo === 'ord'
+            ? (r.correo || '')
+            : (CONFIG.CORREOS_INTERNOS || '');
+        document.getElementById('correo-cc').value = tipo === 'ord' ? (CONFIG.CORREOS_INTERNOS || '') : (AUTH.email || '');
+        document.getElementById('correo-nota').value = '';
+        document.getElementById('modal-correo').classList.add('abierto');
+        document.getElementById('correo-para').focus();
+        return new Promise(res => { _resolverCorreo = res; });
+    }
+    function cerrarCorreo(valor) {
+        document.getElementById('modal-correo').classList.remove('abierto');
+        const r = _resolverCorreo; _resolverCorreo = null;
+        if (r) r(valor);
+    }
+    function cancelarCorreo() { cerrarCorreo(null); }
+    function confirmarCorreo() {
+        const para = document.getElementById('correo-para').value.trim();
+        const cc = document.getElementById('correo-cc').value.trim();
+        if (!listaCorreos(para).length) { showToast('Indique al menos un destinatario', 'error'); return; }
+        const malos = correosInvalidos(para).concat(correosInvalidos(cc));
+        if (malos.length) { showToast('Correo inválido: ' + malos.join(', '), 'error'); return; }
+        cerrarCorreo({ para: listaCorreos(para).join(','), cc: listaCorreos(cc).join(','), nota: document.getElementById('correo-nota').value.trim() });
+    }
+
+    // Lo recién guardado se puede mandar sin ir al historial.
+    const ULTIMO = { sol: null, ord: null, eval: null };
+    function marcarUltimo(tipo, key) {
+        ULTIMO[tipo] = key;
+        const btn = document.getElementById('btn-mail-' + tipo);
+        if (btn) btn.disabled = false;
+    }
+    function enviarUltimo(tipo, btn) {
+        if (!ULTIMO[tipo]) { showToast('Guarde primero el documento, o envíelo desde el historial', 'warning'); return; }
+        return enviarPorCorreo(tipo, ULTIMO[tipo], btn);
+    }
+
     function enviarPorCorreo(tipo, key, btn) {
         return accionUnica('mail-' + tipo + '-' + key, btn, async () => {
             const r = buscarRegistro(tipo, key);
             if (!r) { showToast('No se encontró el registro', 'error'); return; }
 
-            const sugerido = tipo === 'ord' ? (r.correo || '') : '';
-            const para = (prompt('Enviar a (correo del destinatario):', sugerido) || '').trim();
-            if (!para) return;
-            if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(para)) { showToast('Correo inválido: ' + para, 'error'); return; }
+            let { asunto, cuerpo } = textoCorreo(tipo, r);
+            const destino = await pedirDestinatarios(tipo, r, asunto);
+            if (!destino) return;
+            const { para, cc } = destino;
+            if (destino.nota) cuerpo = destino.nota + '\n\n' + cuerpo;
 
             const { pdf, nombre } = armarDocumento(tipo, r);
-            const { asunto, cuerpo } = textoCorreo(tipo, r);
-            const cc = AUTH.email || '';
 
             if (syncOn()) {
                 try {
@@ -2559,11 +2671,14 @@ Tel: 222-941-7295`
     }
 
     function abrirMailto(para, cc, asunto, cuerpo) {
+        // Cada dirección se codifica por separado: la coma que las separa debe
+        // llegar literal para que el cliente de correo reconozca varios destinos.
+        const dirs = t => listaCorreos(t).map(encodeURIComponent).join(',');
         const partes = [];
-        if (cc) partes.push('cc=' + encodeURIComponent(cc));
+        if (cc) partes.push('cc=' + dirs(cc));
         partes.push('subject=' + encodeURIComponent(asunto));
         partes.push('body=' + encodeURIComponent(cuerpo));
-        window.location.href = 'mailto:' + encodeURIComponent(para) + '?' + partes.join('&');
+        window.location.href = 'mailto:' + dirs(para) + '?' + partes.join('&');
     }
 
     function eliminarRegistro(tipo, key) {
