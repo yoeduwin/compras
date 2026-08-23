@@ -1553,10 +1553,13 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         recomputeCounters(); saveDB();
         // El registro ya quedó guardado: si el PDF falla, se avisa pero no se
         // pierde el folio ni se corta la actualización de la pantalla.
-        try { generarPDFSolicitud(rec); } catch (e) { console.error(e); showToast('La solicitud se guardó, pero el PDF falló: ' + (e.message || e), 'error'); }
+        let pdfOk = true;
+        try { generarPDFSolicitud(rec); } catch (e) { console.error(e); pdfOk = false; }
         document.getElementById('folio-solicitud').value = peekFolio('solicitud', new Date().getFullYear());
         renderHistorial();
-        showToast('Solicitud ' + rec.folio + ' guardada en el historial', 'success');
+        // Un solo mensaje final: el toast es único y el de éxito taparía al de error.
+        if (pdfOk) showToast('Solicitud ' + rec.folio + ' guardada en el historial', 'success');
+        else showToast('Solicitud ' + rec.folio + ' guardada, pero el PDF falló. Use el botón 📄 PDF del historial.', 'error');
     }
     function generarPDFSolicitud(r) {
         const { jsPDF } = window.jspdf;
@@ -1720,10 +1723,12 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         // marcar solicitud vinculada
         if (rec.solicitudFolio) { const s = DB.solicitudes.find(s => s.folio === rec.solicitudFolio); if (s) { s.estado = 'Con orden'; pushRemote('upsert', 'solicitud', s); } }
         recomputeCounters(); saveDB();
-        try { generarPDFOrden(rec); } catch (e) { console.error(e); showToast('La orden se guardó, pero el PDF falló: ' + (e.message || e), 'error'); }
+        let pdfOk = true;
+        try { generarPDFOrden(rec); } catch (e) { console.error(e); pdfOk = false; }
         document.getElementById('num-orden').value = peekFolio('orden', new Date().getFullYear());
         renderHistorial();
-        showToast('Orden ' + rec.folio + ' guardada en el historial', 'success');
+        if (pdfOk) showToast('Orden ' + rec.folio + ' guardada en el historial', 'success');
+        else showToast('Orden ' + rec.folio + ' guardada, pero el PDF falló. Use el botón 📄 PDF del historial.', 'error');
     }
     function generarPDFOrden(r) {
         const { jsPDF } = window.jspdf;
@@ -1883,9 +1888,11 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         if (prov) { prov.ultimaCalif = rec.calificacion; prov.ultimaEval = rec.fecha; pushRemote('upsert', 'proveedor', prov); }
         saveDB();
         pushRemote('upsert', 'evaluacion', rec);
-        try { generarPDFEvaluacion(rec); } catch (e) { console.error(e); showToast('La evaluación se guardó, pero el PDF falló: ' + (e.message || e), 'error'); }
+        let pdfOk = true;
+        try { generarPDFEvaluacion(rec); } catch (e) { console.error(e); pdfOk = false; }
         renderHistorial();
-        showToast('Evaluación de ' + proveedor + ' guardada', 'success');
+        if (pdfOk) showToast('Evaluación de ' + proveedor + ' guardada', 'success');
+        else showToast('Evaluación de ' + proveedor + ' guardada, pero el PDF falló. Use el botón 📄 PDF del historial.', 'error');
     }
     function generarPDFEvaluacion(r) {
         const { jsPDF } = window.jspdf;
