@@ -502,6 +502,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         .btn-add { background: #17a2b8; color: white; margin-top: 1rem; }
         .btn-add:hover { background: #138496; }
         .btn-sm { padding: 0.3rem 0.6rem; font-size: 0.8rem; }
+        .btn:disabled, .btn.is-busy { opacity: 0.6; cursor: not-allowed; pointer-events: none; filter: grayscale(0.2); }
 
         .action-buttons { display: flex; gap: 1rem; margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid #e9ecef; flex-wrap: wrap; }
 
@@ -678,7 +679,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
                 </div>
 
                 <div class="action-buttons">
-                    <button class="btn btn-success" onclick="guardarYGenerarSolicitud()">💾 Guardar y Generar PDF</button>
+                    <button class="btn btn-success" onclick="accionUnica('guardar-solicitud', this, guardarYGenerarSolicitud)">💾 Guardar y Generar PDF</button>
                     <button class="btn btn-secondary" onclick="limpiarFormulario('solicitud')">🗑️ Limpiar Formulario</button>
                 </div>
             </div>
@@ -821,7 +822,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
                 </div>
 
                 <div class="action-buttons">
-                    <button class="btn btn-success" onclick="guardarYGenerarOrden()">💾 Guardar y Generar PDF</button>
+                    <button class="btn btn-success" onclick="accionUnica('guardar-orden', this, guardarYGenerarOrden)">💾 Guardar y Generar PDF</button>
                     <button class="btn btn-secondary" onclick="limpiarFormulario('orden')">🗑️ Limpiar Formulario</button>
                 </div>
             </div>
@@ -926,7 +927,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 
                 <div class="action-buttons">
                     <button class="btn btn-primary" onclick="calcularCalificacion()">🧮 Calcular Calificación</button>
-                    <button class="btn btn-success" onclick="guardarYGenerarEvaluacion()">💾 Guardar y Generar PDF</button>
+                    <button class="btn btn-success" onclick="accionUnica('guardar-evaluacion', this, guardarYGenerarEvaluacion)">💾 Guardar y Generar PDF</button>
                     <button class="btn btn-secondary" onclick="limpiarFormulario('evaluacion')">🗑️ Limpiar Formulario</button>
                 </div>
             </div>
@@ -977,7 +978,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
                 </div>
 
                 <div class="action-buttons">
-                    <button class="btn btn-success" onclick="generarPDFLista()">📄 Generar PDF</button>
+                    <button class="btn btn-success" onclick="accionUnica('pdf-lista', this, generarPDFLista)">📄 Generar PDF</button>
                 </div>
             </div>
 
@@ -1411,6 +1412,58 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     }
 
     // ============================================================
+    //  Anti doble clic: una acción a la vez por botón
+    // ============================================================
+    const _accionesEnCurso = new Set();
+    // Ejecuta fn bloqueando el botón mientras corre: evita que varios clics
+    // generen solicitudes/órdenes duplicadas y da retroalimentación visible.
+    async function accionUnica(clave, btn, fn) {
+        if (_accionesEnCurso.has(clave)) return;
+        _accionesEnCurso.add(clave);
+        let htmlOriginal = null;
+        if (btn) {
+            htmlOriginal = btn.innerHTML;
+            btn.disabled = true; btn.classList.add('is-busy');
+            btn.innerHTML = '⏳ Generando…';
+        }
+        try {
+            await fn();
+        } catch (e) {
+            console.error(e);
+            showToast('No se pudo completar: ' + (e && e.message ? e.message : e), 'error');
+        } finally {
+            _accionesEnCurso.delete(clave);
+            if (btn) { btn.disabled = false; btn.classList.remove('is-busy'); btn.innerHTML = htmlOriginal; }
+        }
+    }
+    // Detecta un registro equivalente creado hace pocos minutos: sirve para
+    // avisar cuando un clic repetido está a punto de duplicar el folio.
+    function duplicadoReciente(lista, pred, minutos = 10) {
+        const limite = Date.now() - minutos * 60000;
+        return (lista || []).slice().reverse().find(r => pred(r) && new Date(r.createdAt || 0).getTime() >= limite) || null;
+    }
+    // Descarga el PDF. Si el navegador bloquea la descarga directa, abre el
+    // archivo en una pestaña para que nunca "no pase nada" al hacer clic.
+    function guardarPDF(pdf, nombre) {
+        try {
+            pdf.save(nombre);
+        } catch (e) {
+            console.error(e);
+            try {
+                const url = URL.createObjectURL(pdf.output('blob'));
+                const w = window.open(url, '_blank');
+                if (!w) throw new Error('el navegador bloqueó la ventana');
+                setTimeout(() => URL.revokeObjectURL(url), 60000);
+                showToast('PDF abierto en una pestaña nueva', 'info');
+                return;
+            } catch (e2) {
+                showToast('No se pudo descargar el PDF: ' + (e2.message || e2), 'error');
+                throw e2;
+            }
+        }
+    }
+
+    // ============================================================
     //  PDF: encabezado y pie compartidos
     // ============================================================
     function pdfHeader(pdf, titulo, codigo, opts = {}) {
@@ -1477,6 +1530,14 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         };
         const idx = DB.solicitudes.findIndex(s => s.folio === folio);
         const editando = idx >= 0;
+        if (!editando) {
+            const dup = duplicadoReciente(DB.solicitudes, s => s.area === area && s.tipo === tipo && s.descripcion === descripcion);
+            if (dup && !confirm(`Ya se generó la solicitud ${dup.folio} con estos mismos datos hace unos minutos.\n\n¿Desea crear otra solicitud nueva?`)) {
+                generarPDFSolicitud(dup);
+                showToast('Se volvió a generar el PDF de ' + dup.folio, 'info');
+                return;
+            }
+        }
         // Si Sheets está activo, el servidor asigna el folio consecutivo (autoritativo, sin choques entre equipos)
         if (syncOn()) {
             try {
@@ -1490,7 +1551,9 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         } else if (!editando) { commitFolio('solicitud', year); }
         if (editando) DB.solicitudes[idx] = rec; else DB.solicitudes.push(rec);
         recomputeCounters(); saveDB();
-        generarPDFSolicitud(rec);
+        // El registro ya quedó guardado: si el PDF falla, se avisa pero no se
+        // pierde el folio ni se corta la actualización de la pantalla.
+        try { generarPDFSolicitud(rec); } catch (e) { console.error(e); showToast('La solicitud se guardó, pero el PDF falló: ' + (e.message || e), 'error'); }
         document.getElementById('folio-solicitud').value = peekFolio('solicitud', new Date().getFullYear());
         renderHistorial();
         showToast('Solicitud ' + rec.folio + ' guardada en el historial', 'success');
@@ -1538,7 +1601,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 
         firmas(pdf, y, [['Solicitó', r.solicito, 'Nombre y firma'], ['Autorizó', r.autorizo, 'Nombre y firma']]);
         pdfFooter(pdf, 'EA-FDCS-05.01');
-        pdf.save(`Solicitud_Compra_${r.folio}.pdf`);
+        guardarPDF(pdf, `Solicitud_Compra_${r.folio}.pdf`);
     }
 
     // Firmas genéricas: array de [titulo, nombre, sublabel]
@@ -1635,6 +1698,14 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         };
         const idx = DB.ordenes.findIndex(o => o.folio === folio);
         const editando = idx >= 0;
+        if (!editando) {
+            const dup = duplicadoReciente(DB.ordenes, o => o.proveedor === proveedor && o.fecha === fecha && Math.abs((o.total || 0) - t.total) < 0.01);
+            if (dup && !confirm(`Ya se generó la orden ${dup.folio} para ${proveedor} con el mismo total hace unos minutos.\n\n¿Desea crear otra orden nueva?`)) {
+                generarPDFOrden(dup);
+                showToast('Se volvió a generar el PDF de ' + dup.folio, 'info');
+                return;
+            }
+        }
         if (syncOn()) {
             try {
                 if (editando) { const res = await apiPost({ action: 'upsert', collection: 'orden', record: rec }); if (!res.ok) throw new Error(res.error); }
@@ -1649,7 +1720,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         // marcar solicitud vinculada
         if (rec.solicitudFolio) { const s = DB.solicitudes.find(s => s.folio === rec.solicitudFolio); if (s) { s.estado = 'Con orden'; pushRemote('upsert', 'solicitud', s); } }
         recomputeCounters(); saveDB();
-        generarPDFOrden(rec);
+        try { generarPDFOrden(rec); } catch (e) { console.error(e); showToast('La orden se guardó, pero el PDF falló: ' + (e.message || e), 'error'); }
         document.getElementById('num-orden').value = peekFolio('orden', new Date().getFullYear());
         renderHistorial();
         showToast('Orden ' + rec.folio + ' guardada en el historial', 'success');
@@ -1721,7 +1792,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 
         firmas(pdf, y, [['Realizó', r.realizo, 'Nombre, fecha y firma'], ['Revisó', r.reviso, 'Nombre, fecha y firma'], ['Autorizó', r.autorizo, 'Nombre, fecha y firma']]);
         pdfFooter(pdf, 'EA-FDCS-05.02');
-        pdf.save(`Orden_Compra_${r.folio}.pdf`);
+        guardarPDF(pdf, `Orden_Compra_${r.folio}.pdf`);
     }
 
     // ============================================================
@@ -1800,13 +1871,19 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
             reviso: document.getElementById('reviso-eval').value,
             createdAt: new Date().toISOString()
         };
+        const dupEval = duplicadoReciente(DB.evaluaciones, e => e.proveedor === proveedor && e.calificacion === rec.calificacion);
+        if (dupEval && !confirm(`Ya se guardó una evaluación de ${proveedor} con la misma calificación hace unos minutos.\n\n¿Desea registrar otra?`)) {
+            generarPDFEvaluacion(dupEval);
+            showToast('Se volvió a generar el PDF de la evaluación de ' + proveedor, 'info');
+            return;
+        }
         DB.evaluaciones.push(rec);
         // actualizar proveedor
         const prov = DB.proveedores.find(p => p.nombre.toLowerCase() === proveedor.toLowerCase());
         if (prov) { prov.ultimaCalif = rec.calificacion; prov.ultimaEval = rec.fecha; pushRemote('upsert', 'proveedor', prov); }
         saveDB();
         pushRemote('upsert', 'evaluacion', rec);
-        generarPDFEvaluacion(rec);
+        try { generarPDFEvaluacion(rec); } catch (e) { console.error(e); showToast('La evaluación se guardó, pero el PDF falló: ' + (e.message || e), 'error'); }
         renderHistorial();
         showToast('Evaluación de ' + proveedor + ' guardada', 'success');
     }
@@ -1872,7 +1949,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 
         firmas(pdf, y, [['Elaboró', r.elaboro, 'Nombre y firma'], ['Revisó y autorizó', r.reviso, 'Nombre y firma']]);
         pdfFooter(pdf, 'EA-FDCS-05.03');
-        pdf.save(`Evaluacion_Proveedor_${r.proveedor.replace(/[^a-z0-9]/gi, '_').slice(0, 30)}.pdf`);
+        guardarPDF(pdf, `Evaluacion_Proveedor_${r.proveedor.replace(/[^a-z0-9]/gi, '_').slice(0, 30)}.pdf`);
     }
 
     // ============================================================
@@ -2043,7 +2120,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
             pdf.setFontSize(7); pdf.setTextColor(90, 90, 90); pdf.text('Nombre, fecha y firma', x + fw / 2, y + 21, { align: 'center' }); pdf.setTextColor(0, 0, 0);
         });
         pdfFooterLista(pdf);
-        pdf.save('Lista_Proveedores_Confiables_EA.pdf');
+        guardarPDF(pdf, 'Lista_Proveedores_Confiables_EA.pdf');
         showToast('PDF de lista generado', 'success');
     }
     function pdfFooterLista(pdf) {
@@ -2100,7 +2177,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
                 <td><strong>${esc(s.folio)}</strong></td><td>${esc(formatearFecha(s.fecha))}</td><td>${esc(s.area)}</td><td>${esc(s.tipo)}</td>
                 <td style="font-size:0.82rem;">${esc((s.descripcion || '').slice(0, 60))}${(s.descripcion || '').length > 60 ? '…' : ''}${oc ? `<br><a class="link-chip" onclick="switchSub('ord')">➜ ${esc(oc.folio)}</a>` : ''}</td>
                 <td>${estado}</td>
-                <td><button class="btn btn-primary btn-sm" onclick="reimprimir('sol','${esc(s.folio)}')">📄 PDF</button>
+                <td><button class="btn btn-primary btn-sm" onclick="reimprimir('sol','${esc(s.folio)}', this)">📄 PDF</button>
                     <button class="btn btn-danger btn-sm" onclick="eliminarRegistro('sol','${esc(s.folio)}')">✕</button></td></tr>`;
         }).join('') : `<tr class="empty-row"><td colspan="7">Sin solicitudes registradas.</td></tr>`;
 
@@ -2110,7 +2187,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
                 <td><strong>${esc(o.folio)}</strong></td><td>${esc(formatearFecha(o.fecha))}</td><td>${esc(o.proveedor)}</td>
                 <td>${money(o.total)}</td>
                 <td>${o.solicitudFolio ? `<span class="link-chip">${esc(o.solicitudFolio)}</span>` : '<span class="pill pill-gray">—</span>'}</td>
-                <td><button class="btn btn-primary btn-sm" onclick="reimprimir('ord','${esc(o.folio)}')">📄 PDF</button>
+                <td><button class="btn btn-primary btn-sm" onclick="reimprimir('ord','${esc(o.folio)}', this)">📄 PDF</button>
                     <button class="btn btn-danger btn-sm" onclick="eliminarRegistro('ord','${esc(o.folio)}')">✕</button></td></tr>`).join('')
             : `<tr class="empty-row"><td colspan="6">Sin órdenes registradas.</td></tr>`;
 
@@ -2121,14 +2198,16 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
                 <td><span class="pill ${e.calificacion >= 8 ? 'pill-green' : 'pill-red'}">${e.calificacion}</span></td>
                 <td>${esc(e.conclusion)}</td>
                 <td>${e.ordenFolio ? `<span class="link-chip">${esc(e.ordenFolio)}</span>` : '<span class="pill pill-gray">—</span>'}</td>
-                <td><button class="btn btn-primary btn-sm" onclick="reimprimir('eval','${esc(e.id)}')">📄 PDF</button>
+                <td><button class="btn btn-primary btn-sm" onclick="reimprimir('eval','${esc(e.id)}', this)">📄 PDF</button>
                     <button class="btn btn-danger btn-sm" onclick="eliminarRegistro('eval','${esc(e.id)}')">✕</button></td></tr>`).join('')
             : `<tr class="empty-row"><td colspan="6">Sin evaluaciones registradas.</td></tr>`;
     }
-    function reimprimir(tipo, key) {
-        if (tipo === 'sol') { const r = DB.solicitudes.find(s => s.folio === key); if (r) generarPDFSolicitud(r); }
-        else if (tipo === 'ord') { const r = DB.ordenes.find(o => o.folio === key); if (r) generarPDFOrden(r); }
-        else if (tipo === 'eval') { const r = DB.evaluaciones.find(e => e.id === key); if (r) generarPDFEvaluacion(r); }
+    function reimprimir(tipo, key, btn) {
+        return accionUnica('pdf-' + tipo + '-' + key, btn, () => {
+            if (tipo === 'sol') { const r = DB.solicitudes.find(s => s.folio === key); if (r) generarPDFSolicitud(r); else showToast('No se encontró la solicitud ' + key, 'error'); }
+            else if (tipo === 'ord') { const r = DB.ordenes.find(o => o.folio === key); if (r) generarPDFOrden(r); else showToast('No se encontró la orden ' + key, 'error'); }
+            else if (tipo === 'eval') { const r = DB.evaluaciones.find(e => e.id === key); if (r) generarPDFEvaluacion(r); else showToast('No se encontró la evaluación', 'error'); }
+        });
     }
     function eliminarRegistro(tipo, key) {
         if (!confirm('¿Eliminar este registro del historial? (No se puede deshacer)')) return;
