@@ -1994,7 +1994,15 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         const { jsPDF } = window.jspdf;
         const pdf = new jsPDF('p', 'mm', 'letter');
         const margin = 15, pageWidth = 215.9, maxWidth = pageWidth - margin * 2;
-        let y = pdfHeader(pdf, 'ORDEN DE COMPRA', 'EA-FDCS-05.02');
+        const codigo = 'EA-FDCS-05.02';
+        const limiteContenido = 258; // reserva el espacio del pie institucional
+        let y = pdfHeader(pdf, 'ORDEN DE COMPRA', codigo);
+
+        const nuevaPaginaOrden = (titulo = 'ORDEN DE COMPRA', titleSize = 16) => {
+            pdfFooter(pdf, codigo);
+            pdf.addPage();
+            return pdfHeader(pdf, titulo, codigo, { titleSize });
+        };
 
         const h = 8, half = maxWidth / 2;
         celdaEtiqueta(pdf, margin, y, half, h, 'Nombre de proveedor');
@@ -2012,30 +2020,56 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         celdaValor(pdf, margin, y, half, h, r.sucursal); celdaValor(pdf, margin + half, y, half, h, textoAmbito(r, 'orden'), 8); y += h + 3;
         if (r.solicitudFolio) { pdf.setFontSize(8); pdf.setTextColor(0,86,0); pdf.text('Solicitud relacionada: ' + r.solicitudFolio, margin, y); pdf.setTextColor(0,0,0); y += 4; }
 
-        // Tabla de artículos
+        // Tabla de artículos. El encabezado se repite automáticamente si la tabla continúa.
         const cols = [12, 96, 24, 32, 32];
         const heads = ['N°', 'Descripción', 'Cantidad', 'Unitario', 'Total'];
-        pdf.setDrawColor(0, 86, 0);
-        let x = margin;
-        heads.forEach((hd, i) => { pdf.setFillColor(0, 86, 0); pdf.rect(x, y, cols[i], 8, 'F'); pdf.setTextColor(255, 255, 255); pdf.setFont('helvetica', 'bold'); pdf.setFontSize(8); pdf.text(hd, x + cols[i] / 2, y + 5.3, { align: 'center' }); x += cols[i]; });
-        y += 8;
-        pdf.setTextColor(0, 0, 0); pdf.setFont('helvetica', 'normal'); pdf.setDrawColor(120, 120, 120);
-        r.articulos.forEach((a, i) => {
+        const dibujarEncabezadoArticulos = () => {
+            pdf.setDrawColor(0, 86, 0);
+            let x = margin;
+            heads.forEach((hd, i) => {
+                pdf.setFillColor(0, 86, 0); pdf.rect(x, y, cols[i], 8, 'F');
+                pdf.setTextColor(255, 255, 255); pdf.setFont('helvetica', 'bold'); pdf.setFontSize(8);
+                pdf.text(hd, x + cols[i] / 2, y + 5.3, { align: 'center' }); x += cols[i];
+            });
+            y += 8;
+            pdf.setTextColor(0, 0, 0); pdf.setFont('helvetica', 'normal'); pdf.setDrawColor(120, 120, 120);
+        };
+        dibujarEncabezadoArticulos();
+
+        (r.articulos || []).forEach((a, i) => {
             const descLines = pdf.splitTextToSize(a.desc || '', cols[1] - 3);
             const rh = Math.max(8, descLines.length * 3.6 + 3);
-            x = margin;
+            if (y + rh > limiteContenido) {
+                y = nuevaPaginaOrden();
+                pdf.setFontSize(8); pdf.setTextColor(0, 86, 0);
+                pdf.text('Continuación de la orden ' + (r.folio || ''), margin, y);
+                pdf.setTextColor(0, 0, 0); y += 5;
+                dibujarEncabezadoArticulos();
+            }
+            let x = margin;
             [i + 1, null, a.cant, money(a.precio), money(a.cant * a.precio)].forEach((val, ci) => {
                 pdf.rect(x, y, cols[ci], rh);
                 pdf.setFontSize(8);
-                if (ci === 1) { pdf.text(descLines, x + 1.5, y + 4); }
-                else if (ci === 0) pdf.text(String(val), x + cols[ci] / 2, y + 4.5, { align: 'center' });
-                else if (ci === 2) pdf.text(String(val), x + cols[ci] / 2, y + 4.5, { align: 'center' });
+                if (ci === 1) pdf.text(descLines, x + 1.5, y + 4);
+                else if (ci === 0 || ci === 2) pdf.text(String(val), x + cols[ci] / 2, y + 4.5, { align: 'center' });
                 else pdf.text(String(val), x + cols[ci] - 2, y + 4.5, { align: 'right' });
                 x += cols[ci];
             });
             y += rh;
         });
         y += 3;
+
+        // Reserva completa para totales, condiciones y firmas; si no cabe, continúa en una nueva página.
+        pdf.setFont('helvetica', 'normal'); pdf.setFontSize(8);
+        const lineasCondiciones = pdf.splitTextToSize(r.condiciones || '', 100);
+        const altoCondiciones = Math.max(26, 15 + lineasCondiciones.length * 3.5);
+        const altoBloqueFinal = Math.max(20, altoCondiciones) + 35;
+        if (y + altoBloqueFinal > limiteContenido) {
+            y = nuevaPaginaOrden();
+            pdf.setFontSize(8); pdf.setTextColor(0, 86, 0);
+            pdf.text('Resumen y autorización - ' + (r.folio || ''), margin, y);
+            pdf.setTextColor(0, 0, 0); y += 7;
+        }
 
         // Totales (derecha)
         const tx = pageWidth - margin - 62;
@@ -2047,16 +2081,116 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
             pdf.text(f[0], tx, ty); pdf.text(f[1], pageWidth - margin, ty, { align: 'right' });
             ty += 5;
         });
+
         // Importe con letra + condiciones (izquierda)
         pdf.setFont('helvetica', 'bold'); pdf.setFontSize(8);
         pdf.text(numeroALetra(r.total), margin, y + 2);
         pdf.setFont('helvetica', 'bold'); pdf.text('Condiciones de pago', margin, y + 9);
         pdf.setFont('helvetica', 'normal'); pdf.setFontSize(8);
-        pdf.text(pdf.splitTextToSize(r.condiciones || '', 100), margin, y + 14);
-        y = Math.max(ty, y + 26) + 4;
+        pdf.text(lineasCondiciones, margin, y + 14);
+        y = Math.max(ty, y + altoCondiciones) + 4;
 
         firmas(pdf, y, [['Realizó', r.realizo, 'Nombre, fecha y firma'], ['Revisó', r.reviso, 'Nombre, fecha y firma'], ['Autorizó', r.autorizo, 'Nombre, fecha y firma']]);
-        pdfFooter(pdf, 'EA-FDCS-05.02');
+        pdfFooter(pdf, codigo);
+
+        // ========================================================
+        //  CONDICIONES GENERALES DE COMPRA
+        //  Hoja ejecutiva a una sola página, en dos columnas.
+        //  No modifica el registro ni la comunicación con el backend.
+        // ========================================================
+        const condicionesGenerales = [
+            ['1. Aceptación y documentos aplicables',
+             'El proveedor deberá revisar la Orden de Compra y comunicar por escrito cualquier discrepancia antes de iniciar. La aceptación por correo, el inicio del servicio o la entrega sin objeción escrita implica conformidad. Prevalecerán: Orden de Compra, anexos expresamente aceptados, estas Condiciones y, sólo cuando se referencie, la cotización del proveedor.'],
+            ['2. Alcance, precios y adicionales',
+             'El proveedor suministrará únicamente lo expresamente autorizado. Los precios son firmes para el alcance contratado e incluyen los recursos necesarios, salvo indicación distinta. Ningún gasto, viático, maniobra, material, hora adicional o concepto no previsto generará obligación de pago sin autorización previa y escrita. Todo adicional deberá informarse con alcance, costo e impacto antes de ejecutarse.'],
+            ['3. Modificaciones y autoridad',
+             'Ningún colaborador que solicite, coordine o supervise el servicio queda facultado, por ese solo hecho, para modificar precios, condiciones de pago, alcance o autorizar cargos adicionales. Toda modificación económica, comercial, de alcance o plazo deberá ser autorizada previamente y por escrito por EJECUTIVA AMBIENTAL.'],
+            ['4. Entrega y cumplimiento',
+             'El proveedor cumplirá las fechas confirmadas y notificará de inmediato por escrito cualquier riesgo de retraso, con causa, afectación y nueva fecha propuesta. La notificación no implica aceptación. Una afectación por información, acceso o autorización a cargo de EJECUTIVA AMBIENTAL o del cliente sólo se considerará cuando esa dependencia haya sido identificada, el proveedor la comunique oportunamente y acredite su impacto directo.'],
+            ['5. Recepción, calidad y garantía',
+             'Los bienes y servicios deberán cumplir alcance, cantidad, calidad, especificaciones y entregables convenidos. La recepción, revisión, firma, pago o ausencia de observaciones inmediatas no constituye aceptación definitiva ni renuncia a reclamar defectos ocultos, errores o incumplimientos no detectables inicialmente. Las desviaciones atribuibles al proveedor deberán corregirse, reponerse o completarse sin costo adicional.'],
+            ['6. Cumplimiento técnico y documental',
+             'El proveedor será responsable de identificar y cumplir los requisitos legales, técnicos, normativos y profesionales inherentes a su actividad y, cuando proceda, mantener vigentes y acreditar autorizaciones, licencias, acreditaciones, aprobaciones, calibraciones, competencias, seguros u otros documentos exigibles. Los requisitos particulares que comunique EJECUTIVA AMBIENTAL serán complementarios y no relevarán esa responsabilidad.'],
+            ['7. Personal y subcontratación',
+             'El proveedor es responsable de su personal, equipos, herramientas, materiales y medios. No existe relación laboral entre EJECUTIVA AMBIENTAL y dicho personal. La cesión o subcontratación de actividades relevantes requerirá autorización previa y escrita y no liberará al proveedor de responsabilidad por su cumplimiento.'],
+            ['8. Seguridad y daños',
+             'El proveedor cumplirá las medidas de seguridad y requisitos aplicables al sitio y a su actividad. Los requisitos particulares que EJECUTIVA AMBIENTAL comunique cuando le sean conocidos serán complementarios. El proveedor responderá por los daños directos imputables a sus actos u omisiones o a los de su personal o subcontratistas durante la ejecución.'],
+            ['9. Facturación',
+             'El CFDI deberá coincidir con conceptos, cantidades, importes, impuestos y condiciones autorizadas y acompañarse de los soportes requeridos. Las facturas con errores, diferencias, documentación incompleta o cargos no autorizados podrán devolverse para corrección. Su recepción no implica reconocimiento automático del adeudo.'],
+            ['10. Inicio del plazo de pago',
+             'Salvo condición particular, el plazo de pago iniciará cuando el servicio o suministro haya sido recibido de conformidad, los entregables estén completos, el CFDI sea correcto y no existan aclaraciones pendientes. Cuando exista corrección imputable al proveedor, el plazo comenzará a partir de la recepción completa y correcta del expediente.'],
+            ['11. Comunicaciones de pago',
+             'El seguimiento podrá realizarse con el usuario que solicitó o coordinó el servicio; sin embargo, sus manifestaciones no constituyen confirmación de fecha de pago, modificación financiera, reconocimiento de adeudo ni aceptación de cargos adicionales. Las comunicaciones de facturación y cuentas por pagar deberán incluir a cxp@ejecutivambiental.com.'],
+            ['12. Confidencialidad y protección de clientes',
+             'La información de EJECUTIVA AMBIENTAL y de sus clientes será confidencial y se usará exclusivamente para cumplir la Orden. Sin autorización expresa, el proveedor no podrá divulgarla ni aprovechar el acceso obtenido por conducto de EJECUTIVA AMBIENTAL para ofrecer directamente al cliente servicios iguales, relacionados o derivados de los contratados. Esta restricción no afectará relaciones comerciales previas que el proveedor pueda acreditar documentalmente.'],
+            ['13. Incumplimiento y terminación',
+             'Ante incumplimiento atribuible al proveedor, EJECUTIVA AMBIENTAL podrá exigir corrección, reposición o conclusión cuando sea subsanable y ello no comprometa el objeto de la contratación. Podrá terminar las prestaciones pendientes sin plazo de subsanación cuando el incumplimiento haga inútil el servicio, sea reiterado, grave, implique pérdida de requisitos habilitantes, falsedad documental, violación de confidencialidad o riesgos graves de seguridad, sin obligación de pagar conceptos no conformes.'],
+            ['14. Cancelación',
+             'EJECUTIVA AMBIENTAL podrá cancelar total o parcialmente la Orden antes del inicio, sin responsabilidad por conceptos no ejecutados. Si la cancelación ocurre después del inicio autorizado, sólo podrán considerarse para pago los trabajos efectivamente ejecutados, comprobables, conformes y aprovechables para EJECUTIVA AMBIENTAL. Los costos no recuperables sólo serán revisables si fueron previamente autorizados por escrito y acreditados documentalmente.'],
+            ['15. Independencia, no renuncia y jurisdicción',
+             'El proveedor actúa como contratista independiente y la Orden no crea sociedad, representación, mandato ni relación laboral. La tolerancia, recepción parcial o falta de ejercicio inmediato de un derecho por EJECUTIVA AMBIENTAL no implica renuncia ni modificación de lo pactado. Se aplicarán las leyes mexicanas; las partes procurarán resolver diferencias directamente, sin que ello limite otros derechos, y se someten, cuando legalmente proceda, a los tribunales competentes de Puebla, Puebla. Toda excepción deberá aceptarse por escrito por EJECUTIVA AMBIENTAL.']
+        ];
+
+        pdf.addPage();
+        y = pdfHeader(pdf, 'CONDICIONES GENERALES DE COMPRA', codigo, { titleSize: 11.5 });
+
+        // Banda de identificación de la orden
+        pdf.setFillColor(245, 248, 245);
+        pdf.setDrawColor(190, 205, 190);
+        pdf.roundedRect(margin, y - 1, maxWidth, 12, 1.5, 1.5, 'FD');
+        pdf.setFont('helvetica', 'bold'); pdf.setFontSize(7.2); pdf.setTextColor(0, 86, 0);
+        pdf.text('ORDEN DE COMPRA', margin + 3, y + 3.4);
+        pdf.setTextColor(0, 0, 0); pdf.setFontSize(7.2);
+        pdf.text(String(r.folio || ''), margin + 31, y + 3.4);
+        pdf.setFont('helvetica', 'normal'); pdf.setFontSize(6.45); pdf.setTextColor(55, 55, 55);
+        const intro = pdf.splitTextToSize('Estas condiciones forman parte integrante de la Orden de Compra emitida por SOLUCIÓN EN INGENIERÍA EJECUTIVA AMBIENTAL, S.A. DE C.V. (EJECUTIVA AMBIENTAL) y son aplicables al proveedor señalado en la misma.', maxWidth - 6);
+        pdf.text(intro, margin + 3, y + 7.1);
+        y += 15;
+
+        const gap = 6;
+        const colW = (maxWidth - gap) / 2;
+        const colX = [margin, margin + colW + gap];
+        const topY = y;
+        const bottomY = 258;
+        const tituloSize = 8.35;
+        const cuerpoSize = 7.85;
+        const tituloLH = 3.20;
+        const cuerpoLH = 3.05;
+        const bloqueGap = 2.15;
+
+        // Distribución equilibrada: 8 cláusulas a la izquierda y 7 a la derecha.
+        const columnas = [condicionesGenerales.slice(0, 8), condicionesGenerales.slice(8)];
+        columnas.forEach((items, col) => {
+            let cy = topY;
+            items.forEach(([titulo, cuerpo]) => {
+                pdf.setFont('helvetica', 'bold'); pdf.setFontSize(tituloSize);
+                const tituloLines = pdf.splitTextToSize(titulo, colW);
+                pdf.setFont('helvetica', 'normal'); pdf.setFontSize(cuerpoSize);
+                const bodyLines = pdf.splitTextToSize(cuerpo, colW);
+
+                const alto = tituloLines.length * tituloLH + bodyLines.length * cuerpoLH + bloqueGap;
+                // Salvaguarda visual: en esta versión todo debe caber en una sola hoja.
+                if (cy + alto > bottomY) {
+                    console.warn('Condiciones Generales exceden una hoja; revise texto o tipografía.', { col, titulo, cy, alto });
+                }
+
+                pdf.setFont('helvetica', 'bold'); pdf.setFontSize(tituloSize); pdf.setTextColor(0, 86, 0);
+                pdf.text(tituloLines, colX[col], cy);
+                cy += tituloLines.length * tituloLH;
+                pdf.setFont('helvetica', 'normal'); pdf.setFontSize(cuerpoSize); pdf.setTextColor(25, 25, 25);
+                pdf.text(bodyLines, colX[col], cy);
+                cy += bodyLines.length * cuerpoLH + bloqueGap;
+            });
+        });
+
+        // Separador central discreto
+        pdf.setDrawColor(210, 215, 210); pdf.setLineWidth(0.25);
+        pdf.line(margin + colW + gap / 2, topY, margin + colW + gap / 2, 258);
+
+        pdf.setFont('helvetica', 'italic'); pdf.setFontSize(5.8); pdf.setTextColor(75, 75, 75);
+        pdf.text('La aceptación de la Orden de Compra implica conocimiento y conformidad con estas Condiciones Generales.', margin, 261.5);
+        pdfFooter(pdf, codigo);
+
         return { pdf, nombre: `Orden_Compra_${r.folio}.pdf` };
     }
 
@@ -2536,28 +2670,50 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
                 asunto: `Orden de Compra ${r.folio} — Ejecutiva Ambiental`,
                 cuerpo: `Estimado proveedor,
 
-Adjuntamos la Orden de Compra ${r.folio} de Ejecutiva Ambiental.
+Por medio del presente remitimos la Orden de Compra ${r.folio}, emitida por Solución en Ingeniería Ejecutiva Ambiental, S.A. de C.V.
 
-Datos de la orden
+DATOS DE LA ORDEN
   • Folio: ${r.folio}
   • Fecha: ${formatearFecha(r.fecha)}
   • Ámbito: ${ambito}
   • Sucursal: ${r.sucursal || 'MATRIZ'}
   • Total: ${money(r.total)}${r.condiciones ? '\n  • Condiciones de pago: ' + r.condiciones : ''}
 
-Artículos
+ARTÍCULOS / SERVICIOS
 ${arts || '  • Ver detalle en el PDF adjunto.'}
 
-Favor de confirmar la recepción de esta orden y la fecha estimada de entrega respondiendo a este correo.
+CONFIRMACIÓN Y ACEPTACIÓN
 
-Datos de facturación y entrega
-  • Cliente: ${r.cliente || 'EJECUTIVA AMBIENTAL'}
-  • Dirección: ${r.direccion || ''}
+Favor de confirmar, respondiendo a este mismo correo:
+
+  1. Recepción de la Orden de Compra.
+  2. Aceptación del precio, alcance, cantidades y condiciones indicadas.
+  3. Fecha comprometida de entrega o ejecución.
+  
+En caso de existir alguna diferencia, restricción o condición adicional, deberá informarse por escrito antes de iniciar los trabajos, suministrar materiales o prestar el servicio.
+
+Cualquier modificación de precio, alcance, cantidad, fecha de entrega, condición comercial o concepto deberá contar con autorización previa y por escrito de Ejecutiva Ambiental. Los trabajos, suministros o cargos adicionales realizados sin dicha autorización podrán no ser reconocidos para efectos de pago.
+
+El inicio de los trabajos, prestación del servicio, suministro de materiales o entrega de bienes relacionados con esta Orden de Compra se entenderá como aceptación de las condiciones establecidas en la misma y, en su caso, de los Términos y Condiciones de Compra que la acompañen.
+
+FACTURACIÓN Y PAGO
+
+  • Razón social: ${r.cliente || 'SOLUCION EN INGENIERIA EJECUTIVA AMBIENTAL, S.A. DE C.V.'}
+  • Régimen fiscal: 601 - General de Ley Personas Morales
+  • Dirección: CHIPILO 714, LA PAZ, PUEBLA, PUEBLA, C.P. 72160
   • Teléfono: ${r.telefono || '222-941-7295'}
 
-Gracias,
+La factura deberá corresponder estrictamente con los conceptos, importes y condiciones autorizados en esta Orden de Compra. Cualquier discrepancia podrá suspender su proceso de revisión y pago hasta que sea aclarada o corregida.
+
+La recepción de bienes, servicios o facturas no implica por sí misma la aceptación definitiva de éstos ni la renuncia de Ejecutiva Ambiental a solicitar aclaraciones, correcciones o cumplimiento de las condiciones convenidas.
+
+Para cualquier asunto relacionado con facturación o pago, favor de responder a este correo manteniendo a todos los destinatarios en copia e incluyendo a cxp@ejecutivambiental.com.
+
+Las fechas o compromisos de pago únicamente se considerarán confirmados cuando sean comunicados por el área correspondiente de Ejecutiva Ambiental.
+
+Atentamente,
 Ejecutiva Ambiental
-Tel: 222-941-7295`
+222-941-7295`
             };
         }
         if (tipo === 'sol') {
