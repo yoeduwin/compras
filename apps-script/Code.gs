@@ -22,9 +22,15 @@
  *
  * Cada tipo de registro vive en su propia pestaña (Solicitudes, Ordenes,
  * Evaluaciones, Proveedores) con columnas:
- *   clave | fecha | resumen | json | actualizado
+ *   clave | fecha | resumen | json | actualizado | ambito
  * "json" guarda el registro completo (fuente de verdad); las demás columnas
- * son para que tú puedas leer/filtrar la hoja a simple vista.
+ * son para que tú puedas leer/filtrar la hoja a simple vista. La columna
+ * "ambito" (laboratorio / empresa) permite filtrar la hoja sin abrir el JSON;
+ * si la hoja viene de una versión anterior, el encabezado se repara solo.
+ *
+ * SERIES DE FOLIO (por ámbito y por año, todas calculadas en la hoja):
+ *   laboratorio → SC-AA-NNN (solicitud)  ·  OC-AA-NNN  (orden)
+ *   empresa     → REQ-AA-NNN (solicitud) ·  OCB-AA-NNN (orden)
  */
 
 // ── Configuración de pestañas de datos ─────────────────────────────────────
@@ -34,7 +40,36 @@ var TABS = {
   evaluacion: 'Evaluaciones',
   proveedor:  'Proveedores'
 };
-var HEADERS = ['clave', 'fecha', 'resumen', 'json', 'actualizado'];
+var HEADERS = ['clave', 'fecha', 'resumen', 'json', 'actualizado', 'ambito'];
+
+// ── Series por ámbito ──────────────────────────────────────────────────────
+// Laboratorio y empresa llevan numeración independiente. El prefijo distingue
+// la serie, así que los cuatro consecutivos conviven en las mismas pestañas.
+var PREFIJOS = {
+  solicitud: { laboratorio: 'SC', empresa: 'REQ' },
+  orden:     { laboratorio: 'OC', empresa: 'OCB' }
+};
+var AMBITOS = ['laboratorio', 'empresa'];
+
+function ambitoDe_(valor) {
+  return String(valor || '').toLowerCase() === 'empresa' ? 'empresa' : 'laboratorio';
+}
+function prefijoDe_(collection, ambito) {
+  var m = PREFIJOS[collection];
+  return m ? m[ambitoDe_(ambito)] : '';
+}
+/** Registros anteriores al ámbito: se deduce del prefijo del folio (SC/OC = laboratorio). */
+function inferirAmbito_(collection, r) {
+  if (r.ambito) return ambitoDe_(r.ambito);
+  var folio = String(r.folio || '');
+  var m = PREFIJOS[collection];
+  if (m) {
+    for (var i = 0; i < AMBITOS.length; i++) {
+      if (folio.indexOf(m[AMBITOS[i]] + '-') === 0) return AMBITOS[i];
+    }
+  }
+  return 'laboratorio';
+}
 
 // ── Configuración de seguridad ─────────────────────────────────────────────
 var SHEET_USUARIOS = 'Usuarios';                 // pestaña con la lista blanca
@@ -71,7 +106,8 @@ function handle(e, params) {
     if (!auth.ok) return json({ ok: false, authRequired: true, error: auth.error });
 
     if (action === 'pull')   return json({ ok: true, data: pullAll() });
-    if (action === 'nextFolio') return json(nextFolio(params.collection, params.year));
+    if (action === 'nextFolio') return json(nextFolio(params.collection, params.year, params.ambito));
+    if (action === 'enviarCorreo') return json(enviarCorreo(params, auth.email));
     if (action === 'add')    return json(addRecord(params.collection, params.record || {}));
     if (action === 'upsert') return json(upsertRecord(params.collection, params.record || {}));
     if (action === 'delete') return json(deleteRecord(params.collection, params.key));
@@ -235,7 +271,16 @@ function getSheet(collection) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ss.getSheetByName(name);
   if (!sh) { sh = ss.insertSheet(name); }
-  if (sh.getLastRow() === 0) { sh.appendRow(HEADERS); }
+  if (sh.getLastRow() === 0) { sh.appendRow(HEADERS); return sh; }
+  // Repara el encabezado si la hoja viene de una versión anterior (p. ej. sin
+  // la columna 'ambito'). Idempotente: sólo escribe cuando algo no coincide.
+  if (sh.getMaxColumns() < HEADERS.length) {
+    sh.insertColumnsAfter(sh.getMaxColumns(), HEADERS.length - sh.getMaxColumns());
+  }
+  var head = sh.getRange(1, 1, 1, HEADERS.length).getValues()[0];
+  var reparar = false;
+  for (var i = 0; i < HEADERS.length; i++) { if (String(head[i]) !== HEADERS[i]) reparar = true; }
+  if (reparar) sh.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
   return sh;
 }
 
@@ -248,7 +293,11 @@ function readCollection(collection) {
   for (var i = 0; i < values.length; i++) {
     var jsonCell = values[i][3];
     if (!jsonCell) continue;
-    try { out.push(JSON.parse(jsonCell)); } catch (err) {}
+    try {
+      var r = JSON.parse(jsonCell);
+      r.ambito = inferirAmbito_(collection, r);
+      out.push(r);
+    } catch (err) {}
   }
   return out;
 }
@@ -285,15 +334,15 @@ function findRow(sh, key) {
 
 function rowFor(collection, record) {
   return [ keyOf(collection, record), record.fecha || '', resumenOf(collection, record),
-           JSON.stringify(record), new Date().toISOString() ];
+           JSON.stringify(record), new Date().toISOString(), inferirAmbito_(collection, record) ];
 }
 
 /**
  * Siguiente folio consecutivo del año, calculado SIEMPRE leyendo la hoja.
  * Es la única fuente de verdad de la numeración (el navegador no la inventa).
  */
-function nextFolio_(collection, year) {
-  var prefix = collection === 'solicitud' ? 'SC' : 'OC';
+function nextFolio_(collection, year, ambito) {
+  var prefix = prefijoDe_(collection, ambito);
   var yy = String(year).slice(-2);
   var re = new RegExp('^' + prefix + '-' + yy + '-(\\d+)$');
   var max = 0;
@@ -305,12 +354,13 @@ function nextFolio_(collection, year) {
 }
 
 /** Acción 'nextFolio': vista previa del consecutivo. Sólo lee, no escribe. */
-function nextFolio(collection, year) {
-  if (collection !== 'solicitud' && collection !== 'orden') {
+function nextFolio(collection, year, ambito) {
+  if (!PREFIJOS[collection]) {
     return { ok: false, error: 'Colección sin folio: ' + collection };
   }
   var y = parseInt(year, 10) || new Date().getFullYear();
-  return { ok: true, collection: collection, year: y, folio: nextFolio_(collection, y) };
+  var amb = ambitoDe_(ambito);
+  return { ok: true, collection: collection, year: y, ambito: amb, folio: nextFolio_(collection, y, amb) };
 }
 
 /** Inserta asignando folio consecutivo por año (SC/OC). Usa Lock para evitar choques. */
@@ -318,9 +368,10 @@ function addRecord(collection, record) {
   var lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
-    if (collection === 'solicitud' || collection === 'orden') {
+    record.ambito = ambitoDe_(record.ambito);
+    if (PREFIJOS[collection]) {
       var year = (record.fecha ? new Date(record.fecha + 'T00:00:00').getFullYear() : new Date().getFullYear());
-      record.folio = nextFolio_(collection, year);
+      record.folio = nextFolio_(collection, year, record.ambito);
     }
     var sh = getSheet(collection);
     var existingRow = findRow(sh, keyOf(collection, record));
@@ -348,4 +399,34 @@ function deleteRecord(collection, key) {
   var row = findRow(sh, key);
   if (row > 0) sh.deleteRow(row);
   return { ok: true, key: key };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  ENVÍO DE DOCUMENTOS POR CORREO
+// ═══════════════════════════════════════════════════════════════════════════
+/**
+ * Envía un documento (PDF en base64) por correo desde la cuenta dueña del
+ * script. Responder al correo llega a quien lo envió desde el sistema.
+ * params: { para, cc, asunto, cuerpo, adjunto: { nombre, base64 } }
+ */
+function enviarCorreo(params, remitente) {
+  var para = String(params.para || '').trim();
+  if (!para) return { ok: false, error: 'Falta el destinatario' };
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(para)) return { ok: false, error: 'Correo inválido: ' + para };
+
+  var opciones = { name: 'Ejecutiva Ambiental' };
+  if (remitente) opciones.replyTo = remitente;
+  if (params.cc) opciones.cc = String(params.cc).trim();
+
+  var adj = params.adjunto;
+  if (adj && adj.base64) {
+    var bytes = Utilities.base64Decode(adj.base64);
+    opciones.attachments = [
+      Utilities.newBlob(bytes, 'application/pdf', adj.nombre || 'documento.pdf')
+    ];
+  }
+
+  GmailApp.sendEmail(para, String(params.asunto || 'Documento — Ejecutiva Ambiental'),
+                     String(params.cuerpo || ''), opciones);
+  return { ok: true, para: para, cc: opciones.cc || '', adjunto: adj ? (adj.nombre || '') : '' };
 }

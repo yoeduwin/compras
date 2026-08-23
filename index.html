@@ -504,6 +504,36 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         .btn-sm { padding: 0.3rem 0.6rem; font-size: 0.8rem; }
         .btn:disabled, .btn.is-busy { opacity: 0.6; cursor: not-allowed; pointer-events: none; filter: grayscale(0.2); }
 
+        /* Ámbito de la compra: laboratorio (serie SC/OC) vs empresa (serie REQ/OCB) */
+        .ambito-bar { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;
+            padding: 0.7rem 1rem; border-radius: 8px; margin-bottom: 1.25rem;
+            border-left: 5px solid var(--verde); background: #f1f7f1; }
+        .ambito-bar.es-empresa { border-left-color: #495057; background: #f1f3f5; }
+        .ambito-bar .ambito-nombre { font-weight: 700; letter-spacing: 0.04em; color: var(--verde); }
+        .ambito-bar.es-empresa .ambito-nombre { color: #343a40; }
+        .ambito-bar .ambito-series { font-size: 0.82rem; color: #666; }
+        .ambito-bar .btn { margin-left: auto; }
+
+        .modal-fondo { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 9000;
+            display: none; align-items: center; justify-content: center; padding: 1rem; }
+        .modal-fondo.abierto { display: flex; }
+        .modal-caja { background: #fff; border-radius: 12px; max-width: 620px; width: 100%;
+            padding: 2rem; box-shadow: 0 18px 50px rgba(0,0,0,0.3); }
+        .modal-caja h3 { color: var(--verde); margin-bottom: 0.5rem; font-size: 1.35rem; }
+        .modal-caja p { color: #555; font-size: 0.9rem; margin-bottom: 1.5rem; }
+        .modal-opciones { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        @media (max-width: 560px) { .modal-opciones { grid-template-columns: 1fr; } }
+        .modal-opcion { border: 2px solid #dee2e6; border-radius: 10px; padding: 1.2rem; cursor: pointer;
+            background: #fff; text-align: left; transition: all 0.2s; font-family: inherit; }
+        .modal-opcion:hover { border-color: var(--verde); background: #f1f7f1; transform: translateY(-2px); }
+        .modal-opcion .mo-titulo { font-weight: 700; font-size: 1.05rem; color: #222; margin-bottom: 0.35rem; }
+        .modal-opcion .mo-series { font-size: 0.8rem; color: #666; }
+
+        .filtro-ambito { display: inline-flex; border: 1px solid #dee2e6; border-radius: 8px; overflow: hidden; margin-bottom: 1rem; }
+        .filtro-ambito button { border: none; background: #fff; padding: 0.5rem 1rem; cursor: pointer;
+            font-weight: 600; font-size: 0.85rem; color: #555; font-family: inherit; }
+        .filtro-ambito button.activo { background: var(--verde); color: #fff; }
+
         .action-buttons { display: flex; gap: 1rem; margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid #e9ecef; flex-wrap: wrap; }
 
         .document-footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 2px solid #e9ecef; font-size: 0.8rem; color: #666; text-align: center; }
@@ -583,6 +613,11 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
                     <h2>SOLICITUD DE COMPRA</h2>
                     <div class="page-info">EA-FDCS-05.01</div>
                 </div>
+                <div class="ambito-bar" id="ambito-bar-solicitud">
+                    <span class="ambito-nombre" id="ambito-nombre-solicitud">—</span>
+                    <span class="ambito-series" id="ambito-series-solicitud"></span>
+                    <button class="btn btn-secondary btn-sm" onclick="cambiarAmbito('solicitud')">Cambiar</button>
+                </div>
 
                 <div class="form-section">
                     <div class="section-title">Información de la Solicitud</div>
@@ -590,7 +625,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
                         <div class="form-group">
                             <label for="folio-solicitud">Folio de solicitud</label>
                             <input type="text" id="folio-solicitud" style="font-weight: bold;">
-                            <span class="hint">Nomenclatura: SC-AA-NN (consecutivo por año). Se asigna automáticamente.</span>
+                            <span class="hint" id="hint-folio-solicitud">El consecutivo lo asigna la hoja de Google según el ámbito.</span>
                         </div>
                         <div class="form-group">
                             <label for="fecha-solicitud">Fecha de solicitud</label>
@@ -690,6 +725,11 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
                     <h2>ORDEN DE COMPRA</h2>
                     <div class="page-info">EA-FDCS-05.02</div>
                 </div>
+                <div class="ambito-bar" id="ambito-bar-orden">
+                    <span class="ambito-nombre" id="ambito-nombre-orden">—</span>
+                    <span class="ambito-series" id="ambito-series-orden"></span>
+                    <button class="btn btn-secondary btn-sm" onclick="cambiarAmbito('orden')">Cambiar</button>
+                </div>
 
                 <div class="form-section">
                     <div class="section-title">Información General</div>
@@ -709,7 +749,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
                         <div class="form-group">
                             <label for="num-orden">N° orden de compra</label>
                             <input type="text" id="num-orden" style="font-weight: bold;">
-                            <span class="hint">Nomenclatura: OC-AA-NN (consecutivo por año). Se asigna automáticamente.</span>
+                            <span class="hint" id="hint-folio-orden">El consecutivo lo asigna la hoja de Google según el ámbito.</span>
                         </div>
                         <div class="form-group">
                             <label for="fecha-orden">Fecha</label>
@@ -832,6 +872,11 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
                 <div class="form-header">
                     <h2>EVALUACIÓN DE PROVEEDOR</h2>
                     <div class="page-info">EA-FDCS-05.03</div>
+                </div>
+                <div class="ambito-bar" id="ambito-bar-evaluacion">
+                    <span class="ambito-nombre" id="ambito-nombre-evaluacion">—</span>
+                    <span class="ambito-series" id="ambito-series-evaluacion"></span>
+                    <button class="btn btn-secondary btn-sm" onclick="cambiarAmbito('evaluacion')">Cambiar</button>
                 </div>
 
                 <div class="form-section">
@@ -991,9 +1036,15 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 
                 <div class="cards" id="dashboard-cards"></div>
 
+                <div class="filtro-ambito" id="filtro-ambito">
+                    <button type="button" data-amb="todos" class="activo" onclick="filtrarAmbito('todos')">Todos</button>
+                    <button type="button" data-amb="laboratorio" onclick="filtrarAmbito('laboratorio')">🔬 Laboratorio</button>
+                    <button type="button" data-amb="empresa" onclick="filtrarAmbito('empresa')">🏢 Empresa</button>
+                </div>
+
                 <div class="subtabs">
-                    <div class="subtab active" data-sub="sol" onclick="switchSub('sol')">Solicitudes (SC)</div>
-                    <div class="subtab" data-sub="ord" onclick="switchSub('ord')">Órdenes (OC)</div>
+                    <div class="subtab active" data-sub="sol" onclick="switchSub('sol')">Solicitudes (SC / REQ)</div>
+                    <div class="subtab" data-sub="ord" onclick="switchSub('ord')">Órdenes (OC / OCB)</div>
                     <div class="subtab" data-sub="eval" onclick="switchSub('eval')">Evaluaciones</div>
                 </div>
 
@@ -1001,17 +1052,17 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 
                 <div id="sub-sol" class="subpanel active">
                     <div class="table-container"><table>
-                        <thead><tr><th>Folio</th><th>Fecha</th><th>Área</th><th>Tipo</th><th>Descripción</th><th>Estado</th><th style="width:120px;">Acciones</th></tr></thead>
+                        <thead><tr><th>Folio</th><th>Ámbito</th><th>Fecha</th><th>Área</th><th>Tipo</th><th>Descripción</th><th>Estado</th><th style="width:150px;">Acciones</th></tr></thead>
                         <tbody id="tbody-hist-sol"></tbody></table></div>
                 </div>
                 <div id="sub-ord" class="subpanel">
                     <div class="table-container"><table>
-                        <thead><tr><th>Folio</th><th>Fecha</th><th>Proveedor</th><th>Total</th><th>Solicitud</th><th style="width:120px;">Acciones</th></tr></thead>
+                        <thead><tr><th>Folio</th><th>Ámbito</th><th>Fecha</th><th>Proveedor</th><th>Total</th><th>Solicitud</th><th style="width:150px;">Acciones</th></tr></thead>
                         <tbody id="tbody-hist-ord"></tbody></table></div>
                 </div>
                 <div id="sub-eval" class="subpanel">
                     <div class="table-container"><table>
-                        <thead><tr><th>Fecha</th><th>Proveedor</th><th>Calif.</th><th>Conclusión</th><th>Orden</th><th style="width:120px;">Acciones</th></tr></thead>
+                        <thead><tr><th>Fecha</th><th>Ámbito</th><th>Proveedor</th><th>Calif.</th><th>Conclusión</th><th>Orden</th><th style="width:150px;">Acciones</th></tr></thead>
                         <tbody id="tbody-hist-eval"></tbody></table></div>
                 </div>
 
@@ -1040,6 +1091,24 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ámbito de la compra: se pregunta ANTES de capturar, porque define la serie del folio -->
+    <div id="modal-ambito" class="modal-fondo">
+        <div class="modal-caja">
+            <h3 id="modal-ambito-titulo">¿Esta compra es para el laboratorio?</h3>
+            <p>Define la serie del folio y el historial donde queda registrada. No se puede cambiar después de guardar.</p>
+            <div class="modal-opciones">
+                <button type="button" class="modal-opcion" onclick="responderAmbito('laboratorio')">
+                    <div class="mo-titulo">🔬 Laboratorio</div>
+                    <div class="mo-series" id="modal-series-lab"></div>
+                </button>
+                <button type="button" class="modal-opcion" onclick="responderAmbito('empresa')">
+                    <div class="mo-titulo">🏢 Empresa</div>
+                    <div class="mo-series" id="modal-series-emp"></div>
+                </button>
             </div>
         </div>
     </div>
@@ -1156,12 +1225,12 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     ];
 
     function dbDefault() {
-        return { version: 2, counters: { solicitud: {}, orden: {} }, solicitudes: [], ordenes: [], evaluaciones: [], proveedores: [], seeded: false };
+        return { version: 3, counters: {}, solicitudes: [], ordenes: [], evaluaciones: [], proveedores: [], seeded: false };
     }
     function loadDB() {
         try { DB = JSON.parse(localStorage.getItem(DB_KEY)) || dbDefault(); }
         catch (e) { DB = dbDefault(); }
-        if (!DB.counters) DB.counters = { solicitud: {}, orden: {} };
+        if (!DB.counters || DB.counters.solicitud) DB.counters = {};   // v2 → v3: contadores por serie
         if (!DB.solicitudes) DB.solicitudes = [];
         if (!DB.ordenes) DB.ordenes = [];
         if (!DB.evaluaciones) DB.evaluaciones = [];
@@ -1183,21 +1252,96 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
 
     // Folios consecutivos por año (se reinician cada año)
-    function peekFolio(tipo, year) {
-        const y = String(year);
-        const n = (DB.counters[tipo][y] || 0) + 1;
-        const prefijo = tipo === 'solicitud' ? 'SC' : 'OC';
-        return `${prefijo}-${y.slice(-2)}-${String(n).padStart(3, '0')}`;
+    // Los contadores locales son por serie: 'solicitud|laboratorio', 'orden|empresa', etc.
+    function claveSerie(tipo, ambito) { return tipo + '|' + (ambito || 'laboratorio'); }
+    function peekFolio(tipo, year, ambito) {
+        const y = String(year), k = claveSerie(tipo, ambito);
+        const n = ((DB.counters[k] || {})[y] || 0) + 1;
+        return `${SERIES[tipo][ambito || 'laboratorio']}-${y.slice(-2)}-${String(n).padStart(3, '0')}`;
     }
-    function commitFolio(tipo, year) {
-        const y = String(year);
-        DB.counters[tipo][y] = (DB.counters[tipo][y] || 0) + 1;
+    function commitFolio(tipo, year, ambito) {
+        const y = String(year), k = claveSerie(tipo, ambito);
+        DB.counters[k] = DB.counters[k] || {};
+        DB.counters[k][y] = (DB.counters[k][y] || 0) + 1;
         saveDB();
     }
+    // ============================================================
+    //  ÁMBITO DE LA COMPRA (laboratorio / empresa)
+    //  Define la serie del folio y separa los historiales.
+    // ============================================================
+    const SERIES = {
+        solicitud: { laboratorio: 'SC', empresa: 'REQ' },
+        orden:     { laboratorio: 'OC', empresa: 'OCB' }
+    };
+    const AMBITO_NOMBRE = { laboratorio: '🔬 LABORATORIO', empresa: '🏢 EMPRESA' };
+    // Ámbito elegido en cada formulario. null = todavía no se pregunta.
+    let AMBITO = { solicitud: null, orden: null, evaluacion: null };
+    let FILTRO_AMBITO = 'todos';
+    let _resolverAmbito = null;
+
+    function ambitoDe(r, tipo) {
+        if (r && r.ambito) return r.ambito === 'empresa' ? 'empresa' : 'laboratorio';
+        // Registros anteriores al ámbito: se deduce del prefijo del folio.
+        const folio = String((r && r.folio) || '');
+        const m = SERIES[tipo];
+        if (m && folio.indexOf(m.empresa + '-') === 0) return 'empresa';
+        return 'laboratorio';
+    }
+    function textoAmbito(r, tipo) {
+        return ambitoDe(r, tipo) === 'empresa' ? 'EMPRESA (administrativo)' : 'LABORATORIO DE PRUEBAS';
+    }
+    function seriesDe(ambito) {
+        return SERIES.solicitud[ambito] + '-AA-NNN (solicitud) · ' + SERIES.orden[ambito] + '-AA-NNN (orden)';
+    }
+    // Pregunta el ámbito con el modal. Devuelve una promesa con la respuesta.
+    function preguntarAmbito(tipo) {
+        document.getElementById('modal-ambito-titulo').textContent =
+            tipo === 'evaluacion' ? '¿Esta evaluación es del laboratorio?' : '¿Esta compra es para el laboratorio?';
+        document.getElementById('modal-series-lab').textContent = seriesDe('laboratorio');
+        document.getElementById('modal-series-emp').textContent = seriesDe('empresa');
+        document.getElementById('modal-ambito').classList.add('abierto');
+        return new Promise(res => { _resolverAmbito = res; });
+    }
+    function responderAmbito(valor) {
+        document.getElementById('modal-ambito').classList.remove('abierto');
+        const r = _resolverAmbito; _resolverAmbito = null;
+        if (r) r(valor);
+    }
+    function pintarAmbito(tipo) {
+        const bar = document.getElementById('ambito-bar-' + tipo);
+        if (!bar) return;
+        const a = AMBITO[tipo];
+        bar.classList.toggle('es-empresa', a === 'empresa');
+        document.getElementById('ambito-nombre-' + tipo).textContent = a ? AMBITO_NOMBRE[a] : '—';
+        const series = document.getElementById('ambito-series-' + tipo);
+        if (tipo === 'evaluacion') series.textContent = a ? 'Evaluación de proveedor del ámbito ' + a : '';
+        else series.textContent = a ? 'Serie ' + SERIES[tipo][a] + '-AA-NNN' : '';
+    }
+    // Se llama al entrar a una pestaña: si no hay ámbito elegido, lo pregunta.
+    async function asegurarAmbito(tipo) {
+        if (!AMBITO[tipo]) {
+            AMBITO[tipo] = await preguntarAmbito(tipo);
+            if (tipo === 'orden') poblarSolicitudesRel();
+            if (tipo === 'evaluacion') poblarOrdenesRel();
+        }
+        pintarAmbito(tipo);
+        if (tipo !== 'evaluacion') await refrescarFolios();
+    }
+    async function cambiarAmbito(tipo) {
+        const nuevo = await preguntarAmbito(tipo);
+        if (nuevo === AMBITO[tipo]) return;
+        AMBITO[tipo] = nuevo;
+        pintarAmbito(tipo);
+        if (tipo === 'orden') { document.getElementById('solicitud-rel').value = ''; poblarSolicitudesRel(); }
+        if (tipo === 'evaluacion') { document.getElementById('orden-rel').value = ''; poblarOrdenesRel(); }
+        if (tipo !== 'evaluacion') await refrescarFolios();
+        showToast('Ámbito: ' + AMBITO_NOMBRE[nuevo].replace(/^\S+\s/, ''), 'info');
+    }
+
     // Folio del servidor: con la hoja conectada, el consecutivo SIEMPRE lo decide
     // Google Sheets. El contador local sólo existe para el modo sin hoja (CONFIG vacío).
-    async function folioServidor(tipo, year) {
-        const res = await apiPost({ action: 'nextFolio', collection: tipo, year: String(year) });
+    async function folioServidor(tipo, year, ambito) {
+        const res = await apiPost({ action: 'nextFolio', collection: tipo, year: String(year), ambito });
         if (!res || !res.ok || !res.folio) throw new Error((res && res.error) || 'el servidor no devolvió folio');
         return res.folio;
     }
@@ -1210,12 +1354,14 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
             if (!el) continue;
             const f = document.getElementById(idFecha);
             const year = (f && f.value) ? new Date(f.value + 'T00:00:00').getFullYear() : new Date().getFullYear();
-            if (!syncOn()) { el.readOnly = false; el.placeholder = ''; el.value = peekFolio(tipo, year); continue; }
+            const ambito = AMBITO[tipo];
+            if (!ambito) { el.readOnly = true; el.value = ''; el.placeholder = 'Elija primero el ámbito de la compra'; continue; }
+            if (!syncOn()) { el.readOnly = false; el.placeholder = ''; el.value = peekFolio(tipo, year, ambito); continue; }
             el.readOnly = true;
             if (!authReady()) { el.value = ''; el.placeholder = 'Inicie sesión con Google para obtener el folio'; continue; }
             el.value = ''; el.placeholder = 'Consultando folio en la hoja…';
             try {
-                el.value = await folioServidor(tipo, year);
+                el.value = await folioServidor(tipo, year, ambito);
                 el.placeholder = '';
             } catch (e) {
                 console.error(e);
@@ -1226,12 +1372,16 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     }
     // Recalcula los contadores locales a partir de los folios existentes (máximo por año)
     function recomputeCounters() {
-        const c = { solicitud: {}, orden: {} };
+        const c = {};
         [['solicitud', DB.solicitudes], ['orden', DB.ordenes]].forEach(([tipo, arr]) => {
-            const pref = tipo === 'solicitud' ? 'SC' : 'OC';
-            arr.forEach(r => {
-                const m = new RegExp('^' + pref + '-(\\d{2})-(\\d+)$').exec(r.folio || '');
-                if (m) { const y = '20' + m[1], n = parseInt(m[2], 10); c[tipo][y] = Math.max(c[tipo][y] || 0, n); }
+            ['laboratorio', 'empresa'].forEach(ambito => {
+                const k = claveSerie(tipo, ambito);
+                c[k] = {};
+                const re = new RegExp('^' + SERIES[tipo][ambito] + '-(\\d{2})-(\\d+)$');
+                arr.forEach(r => {
+                    const m = re.exec(r.folio || '');
+                    if (m) { const y = '20' + m[1], n = parseInt(m[2], 10); c[k][y] = Math.max(c[k][y] || 0, n); }
+                });
             });
         });
         DB.counters = c; saveDB();
@@ -1337,6 +1487,10 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
             }
             recomputeCounters(); saveDB(); renderTodo();
             setSyncStatus('Conectado ✓', 'pill-green');
+            // Ya hay sesión y datos: ahora sí tiene sentido preguntar el ámbito.
+            const tabActiva = document.querySelector('.tab.active');
+            const t = tabActiva && tabActiva.dataset.tab;
+            if (t === 'solicitud' || t === 'orden' || t === 'evaluacion') asegurarAmbito(t);
             if (!silent) showToast('Sincronizado con Google Sheets', 'success');
         } catch (e) {
             setSyncStatus('Sin conexión', 'pill-red');
@@ -1375,6 +1529,8 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         if (tabName === 'orden') poblarSolicitudesRel();
         if (tabName === 'evaluacion') poblarOrdenesRel();
         if (tabName === 'historial') renderHistorial();
+        // El ámbito se pregunta ANTES de capturar: define la serie del folio.
+        if (tabName === 'solicitud' || tabName === 'orden' || tabName === 'evaluacion') asegurarAmbito(tabName);
     }
     function showToast(mensaje, tipo = 'info') {
         const toast = document.getElementById('toast');
@@ -1548,16 +1704,18 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         const tipo = document.getElementById('tipo-solicitud').value;
         if (!fecha || !area || !descripcion) { showToast('Complete fecha, área y descripción', 'error'); return; }
 
+        const ambito = AMBITO.solicitud;
+        if (!ambito) { showToast('Elija primero si la compra es del laboratorio o de la empresa', 'error'); await asegurarAmbito('solicitud'); return; }
         const year = new Date(fecha + 'T00:00:00').getFullYear();
         const rec = {
-            folio: '', fecha, area, tipo,
+            folio: '', ambito, fecha, area, tipo,
             descripcion,
             proveedores: document.getElementById('proveedores-sugeridos').value.trim(),
             solicito: valSelect('solicito', 'solicito-otro'),
             autorizo: valSelect('autorizo-sol', 'autorizo-sol-otro'),
             estado: 'Generada', createdAt: new Date().toISOString()
         };
-        const dup = duplicadoReciente(DB.solicitudes, s => s.area === area && s.tipo === tipo && s.descripcion === descripcion);
+        const dup = duplicadoReciente(DB.solicitudes, s => ambitoDe(s, 'solicitud') === ambito && s.area === area && s.tipo === tipo && s.descripcion === descripcion);
         if (dup && !confirm(`Ya se generó la solicitud ${dup.folio} con estos mismos datos hace unos minutos.\n\n¿Desea crear otra solicitud nueva?`)) {
             generarPDFSolicitud(dup);
             showToast('Se volvió a generar el PDF de ' + dup.folio, 'info');
@@ -1573,10 +1731,10 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
             rec.folio = res.record.folio;
             DB.solicitudes.push(rec);
         } else {
-            rec.folio = document.getElementById('folio-solicitud').value.trim() || peekFolio('solicitud', year);
+            rec.folio = document.getElementById('folio-solicitud').value.trim() || peekFolio('solicitud', year, ambito);
             const idx = DB.solicitudes.findIndex(s => s.folio === rec.folio);
             if (idx >= 0) DB.solicitudes[idx] = rec;
-            else { commitFolio('solicitud', year); DB.solicitudes.push(rec); }
+            else { commitFolio('solicitud', year, ambito); DB.solicitudes.push(rec); }
         }
         recomputeCounters(); saveDB();
         // El registro ya quedó guardado: si el PDF falla, se avisa pero no se
@@ -1589,7 +1747,8 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         if (pdfOk) showToast('Solicitud ' + rec.folio + ' guardada en el historial', 'success');
         else showToast('Solicitud ' + rec.folio + ' guardada, pero el PDF falló. Use el botón 📄 PDF del historial.', 'error');
     }
-    function generarPDFSolicitud(r) {
+    function generarPDFSolicitud(r) { const { pdf, nombre } = armarPDFSolicitud(r); guardarPDF(pdf, nombre); }
+    function armarPDFSolicitud(r) {
         const { jsPDF } = window.jspdf;
         const pdf = new jsPDF('p', 'mm', 'letter');
         const margin = 15, pageWidth = 215.9, maxWidth = pageWidth - margin * 2;
@@ -1598,7 +1757,8 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         const lblW = 45, h = 8;
         celdaEtiqueta(pdf, margin, y, lblW, h, 'Folio de solicitud'); celdaValor(pdf, margin + lblW, y, maxWidth - lblW, h, r.folio); y += h;
         celdaEtiqueta(pdf, margin, y, lblW, h, 'Fecha de solicitud'); celdaValor(pdf, margin + lblW, y, maxWidth - lblW, h, formatearFecha(r.fecha)); y += h;
-        celdaEtiqueta(pdf, margin, y, lblW, h, 'Área que solicita'); celdaValor(pdf, margin + lblW, y, maxWidth - lblW, h, r.area); y += h + 5;
+        celdaEtiqueta(pdf, margin, y, lblW, h, 'Área que solicita'); celdaValor(pdf, margin + lblW, y, maxWidth - lblW, h, r.area); y += h;
+        celdaEtiqueta(pdf, margin, y, lblW, h, 'Ámbito'); celdaValor(pdf, margin + lblW, y, maxWidth - lblW, h, textoAmbito(r, 'solicitud')); y += h + 5;
 
         const c1 = 42, c2 = 93, c3 = maxWidth - c1 - c2;
         pdf.setFillColor(0, 86, 0); pdf.setDrawColor(0, 86, 0);
@@ -1632,7 +1792,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 
         firmas(pdf, y, [['Solicitó', r.solicito, 'Nombre y firma'], ['Autorizó', r.autorizo, 'Nombre y firma']]);
         pdfFooter(pdf, 'EA-FDCS-05.01');
-        guardarPDF(pdf, `Solicitud_Compra_${r.folio}.pdf`);
+        return { pdf, nombre: `Solicitud_Compra_${r.folio}.pdf` };
     }
 
     // Firmas genéricas: array de [titulo, nombre, sublabel]
@@ -1708,11 +1868,13 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         if (!proveedor || !fecha) { showToast('Complete proveedor y fecha', 'error'); return; }
         if (articulos.length === 0) { showToast('Agregue al menos un artículo', 'error'); return; }
 
+        const ambito = AMBITO.orden;
+        if (!ambito) { showToast('Elija primero si la compra es del laboratorio o de la empresa', 'error'); await asegurarAmbito('orden'); return; }
         const year = new Date(fecha + 'T00:00:00').getFullYear();
         const t = calcularTotales();
         const esConfiable = DB.proveedores.some(p => p.nombre.trim().toLowerCase() === proveedor.toLowerCase());
         const rec = {
-            folio: '', fecha, proveedor, proveedorConfiable: esConfiable,
+            folio: '', ambito, fecha, proveedor, proveedorConfiable: esConfiable,
             cliente: document.getElementById('cliente').value.trim(),
             telefono: document.getElementById('telefono').value.trim(),
             direccion: document.getElementById('direccion').value.trim(),
@@ -1726,7 +1888,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
             autorizo: valSelect('autorizo-orden', 'autorizo-orden-otro'),
             estado: 'Generada', createdAt: new Date().toISOString()
         };
-        const dup = duplicadoReciente(DB.ordenes, o => o.proveedor === proveedor && o.fecha === fecha && Math.abs((o.total || 0) - t.total) < 0.01);
+        const dup = duplicadoReciente(DB.ordenes, o => ambitoDe(o, 'orden') === ambito && o.proveedor === proveedor && o.fecha === fecha && Math.abs((o.total || 0) - t.total) < 0.01);
         if (dup && !confirm(`Ya se generó la orden ${dup.folio} para ${proveedor} con el mismo total hace unos minutos.\n\n¿Desea crear otra orden nueva?`)) {
             generarPDFOrden(dup);
             showToast('Se volvió a generar el PDF de ' + dup.folio, 'info');
@@ -1741,10 +1903,10 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
             rec.folio = res.record.folio;
             DB.ordenes.push(rec);
         } else {
-            rec.folio = document.getElementById('num-orden').value.trim() || peekFolio('orden', year);
+            rec.folio = document.getElementById('num-orden').value.trim() || peekFolio('orden', year, ambito);
             const idx = DB.ordenes.findIndex(o => o.folio === rec.folio);
             if (idx >= 0) DB.ordenes[idx] = rec;
-            else { commitFolio('orden', year); DB.ordenes.push(rec); }
+            else { commitFolio('orden', year, ambito); DB.ordenes.push(rec); }
         }
         // marcar solicitud vinculada
         if (rec.solicitudFolio) { const s = DB.solicitudes.find(s => s.folio === rec.solicitudFolio); if (s) { s.estado = 'Con orden'; pushRemote('upsert', 'solicitud', s); } }
@@ -1756,7 +1918,8 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         if (pdfOk) showToast('Orden ' + rec.folio + ' guardada en el historial', 'success');
         else showToast('Orden ' + rec.folio + ' guardada, pero el PDF falló. Use el botón 📄 PDF del historial.', 'error');
     }
-    function generarPDFOrden(r) {
+    function generarPDFOrden(r) { const { pdf, nombre } = armarPDFOrden(r); guardarPDF(pdf, nombre); }
+    function armarPDFOrden(r) {
         const { jsPDF } = window.jspdf;
         const pdf = new jsPDF('p', 'mm', 'letter');
         const margin = 15, pageWidth = 215.9, maxWidth = pageWidth - margin * 2;
@@ -1774,8 +1937,8 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         celdaValor(pdf, margin, y, half, h, r.cliente); celdaValor(pdf, margin + half, y, half, h, r.telefono); y += h;
         celdaEtiqueta(pdf, margin, y, half, h, 'Dirección'); celdaEtiqueta(pdf, margin + half, y, half, h, 'Correo'); y += h;
         celdaValor(pdf, margin, y, half, h, r.direccion, 8); celdaValor(pdf, margin + half, y, half, h, r.correo, 8); y += h;
-        celdaEtiqueta(pdf, margin, y, half, h, 'Sucursal'); y += h;
-        celdaValor(pdf, margin, y, half, h, r.sucursal); y += h + 3;
+        celdaEtiqueta(pdf, margin, y, half, h, 'Sucursal'); celdaEtiqueta(pdf, margin + half, y, half, h, 'Ámbito'); y += h;
+        celdaValor(pdf, margin, y, half, h, r.sucursal); celdaValor(pdf, margin + half, y, half, h, textoAmbito(r, 'orden'), 8); y += h + 3;
         if (r.solicitudFolio) { pdf.setFontSize(8); pdf.setTextColor(0,86,0); pdf.text('Solicitud relacionada: ' + r.solicitudFolio, margin, y); pdf.setTextColor(0,0,0); y += 4; }
 
         // Tabla de artículos
@@ -1823,7 +1986,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 
         firmas(pdf, y, [['Realizó', r.realizo, 'Nombre, fecha y firma'], ['Revisó', r.reviso, 'Nombre, fecha y firma'], ['Autorizó', r.autorizo, 'Nombre, fecha y firma']]);
         pdfFooter(pdf, 'EA-FDCS-05.02');
-        guardarPDF(pdf, `Orden_Compra_${r.folio}.pdf`);
+        return { pdf, nombre: `Orden_Compra_${r.folio}.pdf` };
     }
 
     // ============================================================
@@ -1891,8 +2054,10 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         if (!proveedor) { showToast('Ingrese el nombre del proveedor', 'error'); return; }
         const prom = calcularCalificacion();
         if (prom === null) return;
+        const ambito = AMBITO.evaluacion;
+        if (!ambito) { showToast('Elija primero el ámbito de la evaluación', 'error'); asegurarAmbito('evaluacion'); return; }
         const rec = {
-            id: uid(), proveedor,
+            id: uid(), ambito, proveedor,
             fecha: document.getElementById('fecha-eval').value || new Date().toISOString().split('T')[0],
             ordenFolio: document.getElementById('orden-rel').value,
             secciones: leerEvaluacion(),
@@ -1902,7 +2067,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
             reviso: document.getElementById('reviso-eval').value,
             createdAt: new Date().toISOString()
         };
-        const dupEval = duplicadoReciente(DB.evaluaciones, e => e.proveedor === proveedor && e.calificacion === rec.calificacion);
+        const dupEval = duplicadoReciente(DB.evaluaciones, e => ambitoDe(e, 'evaluacion') === ambito && e.proveedor === proveedor && e.calificacion === rec.calificacion);
         if (dupEval && !confirm(`Ya se guardó una evaluación de ${proveedor} con la misma calificación hace unos minutos.\n\n¿Desea registrar otra?`)) {
             generarPDFEvaluacion(dupEval);
             showToast('Se volvió a generar el PDF de la evaluación de ' + proveedor, 'info');
@@ -1920,7 +2085,8 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         if (pdfOk) showToast('Evaluación de ' + proveedor + ' guardada', 'success');
         else showToast('Evaluación de ' + proveedor + ' guardada, pero el PDF falló. Use el botón 📄 PDF del historial.', 'error');
     }
-    function generarPDFEvaluacion(r) {
+    function generarPDFEvaluacion(r) { const { pdf, nombre } = armarPDFEvaluacion(r); guardarPDF(pdf, nombre); }
+    function armarPDFEvaluacion(r) {
         const { jsPDF } = window.jspdf;
         const pdf = new jsPDF('p', 'mm', 'letter');
         const margin = 15, pageWidth = 215.9, maxWidth = pageWidth - margin * 2;
@@ -1928,6 +2094,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 
         const h = 7;
         celdaEtiqueta(pdf, margin, y, 30, h, 'Proveedor'); celdaValor(pdf, margin + 30, y, maxWidth - 30, h, r.proveedor); y += h;
+        celdaEtiqueta(pdf, margin, y, 30, h, 'Ámbito'); celdaValor(pdf, margin + 30, y, maxWidth - 30, h, textoAmbito(r, 'evaluacion')); y += h;
         celdaEtiqueta(pdf, margin, y, 30, h, 'Fecha'); celdaValor(pdf, margin + 30, y, (maxWidth - 30) / 2, h, formatearFecha(r.fecha));
         celdaEtiqueta(pdf, margin + 30 + (maxWidth - 30) / 2, y, 40, h, 'Orden rel.'); celdaValor(pdf, margin + 70 + (maxWidth - 30) / 2, y, maxWidth - 70 - (maxWidth - 30) / 2, h, r.ordenFolio || 'N/A'); y += h + 2;
 
@@ -1982,7 +2149,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 
         firmas(pdf, y, [['Elaboró', r.elaboro, 'Nombre y firma'], ['Revisó y autorizó', r.reviso, 'Nombre y firma']]);
         pdfFooter(pdf, 'EA-FDCS-05.03');
-        guardarPDF(pdf, `Evaluacion_Proveedor_${r.proveedor.replace(/[^a-z0-9]/gi, '_').slice(0, 30)}.pdf`);
+        return { pdf, nombre: `Evaluacion_Proveedor_${r.proveedor.replace(/[^a-z0-9]/gi, '_').slice(0, 30)}.pdf` };
     }
 
     // ============================================================
@@ -2173,67 +2340,97 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         document.querySelectorAll('.subpanel').forEach(p => p.classList.remove('active'));
         document.getElementById('sub-' + name).classList.add('active');
     }
+    // Una orden sólo puede colgar de una solicitud de su mismo ámbito: una OCB
+    // no debe vincularse a una SC del laboratorio.
     function poblarSolicitudesRel() {
         const sel = document.getElementById('solicitud-rel');
         const actual = sel.value;
-        sel.innerHTML = '<option value="">Sin vincular</option>' + DB.solicitudes.slice().reverse().map(s => `<option value="${esc(s.folio)}">${esc(s.folio)} — ${esc(s.descripcion.slice(0, 40))}</option>`).join('');
+        const amb = AMBITO.orden;
+        const lista = DB.solicitudes.filter(x => !amb || ambitoDe(x, 'solicitud') === amb);
+        sel.innerHTML = '<option value="">Sin vincular</option>' + lista.slice().reverse().map(s => `<option value="${esc(s.folio)}">${esc(s.folio)} — ${esc((s.descripcion || '').slice(0, 40))}</option>`).join('');
         sel.value = actual;
     }
     function poblarOrdenesRel() {
         const sel = document.getElementById('orden-rel');
         const actual = sel.value;
-        sel.innerHTML = '<option value="">Sin vincular</option>' + DB.ordenes.slice().reverse().map(o => `<option value="${esc(o.folio)}">${esc(o.folio)} — ${esc(o.proveedor.slice(0, 40))}</option>`).join('');
+        const amb = AMBITO.evaluacion;
+        const lista = DB.ordenes.filter(x => !amb || ambitoDe(x, 'orden') === amb);
+        sel.innerHTML = '<option value="">Sin vincular</option>' + lista.slice().reverse().map(o => `<option value="${esc(o.folio)}">${esc(o.folio)} — ${esc((o.proveedor || '').slice(0, 40))}</option>`).join('');
         sel.value = actual;
     }
-    function renderDashboard() {
-        const totalComprado = DB.ordenes.reduce((a, o) => a + (o.total || 0), 0);
+    // Los contadores reflejan el filtro de ámbito activo (laboratorio / empresa / todos).
+    function renderDashboard(solicitudes, ordenes, evaluaciones) {
+        solicitudes = solicitudes || DB.solicitudes;
+        ordenes = ordenes || DB.ordenes;
+        evaluaciones = evaluaciones || DB.evaluaciones;
+        const totalComprado = ordenes.reduce((a, o) => a + (o.total || 0), 0);
         const cards = [
-            ['Solicitudes', DB.solicitudes.length],
-            ['Órdenes', DB.ordenes.length],
-            ['Evaluaciones', DB.evaluaciones.length],
+            ['Solicitudes', solicitudes.length],
+            ['Órdenes', ordenes.length],
+            ['Evaluaciones', evaluaciones.length],
             ['Proveedores', DB.proveedores.length],
             ['Total comprado', money(totalComprado)]
         ];
         document.getElementById('dashboard-cards').innerHTML = cards.map(c => `<div class="card"><div class="num">${c[1]}</div><div class="lbl">${c[0]}</div></div>`).join('');
     }
+    // Distintivo de ámbito para las tablas del historial
+    function pillAmbito(r, tipo) {
+        const a = ambitoDe(r, tipo);
+        return a === 'empresa'
+            ? '<span class="pill pill-gray">🏢 Empresa</span>'
+            : '<span class="pill pill-green">🔬 Laboratorio</span>';
+    }
+    function filtrarAmbito(valor) {
+        FILTRO_AMBITO = valor;
+        document.querySelectorAll('#filtro-ambito button').forEach(b => b.classList.toggle('activo', b.dataset.amb === valor));
+        renderHistorial();
+    }
     function renderHistorial() {
-        renderDashboard();
         const q = (document.getElementById('buscar-historial').value || '').toLowerCase();
         const match = obj => JSON.stringify(obj).toLowerCase().includes(q);
+        // Laboratorio y empresa se consultan por separado (o juntos con "Todos").
+        const delAmbito = tipo => r => FILTRO_AMBITO === 'todos' || ambitoDe(r, tipo) === FILTRO_AMBITO;
+        const solicitudes = DB.solicitudes.filter(delAmbito('solicitud'));
+        const ordenes = DB.ordenes.filter(delAmbito('orden'));
+        const evaluaciones = DB.evaluaciones.filter(delAmbito('evaluacion'));
+        renderDashboard(solicitudes, ordenes, evaluaciones);
 
         const sol = document.getElementById('tbody-hist-sol');
-        const sols = DB.solicitudes.filter(match).slice().reverse();
+        const sols = solicitudes.filter(match).slice().reverse();
         sol.innerHTML = sols.length ? sols.map(s => {
             const oc = DB.ordenes.find(o => o.solicitudFolio === s.folio);
             const estado = oc ? `<span class="pill pill-green">Con orden</span>` : `<span class="pill pill-amber">Pendiente</span>`;
             return `<tr>
-                <td><strong>${esc(s.folio)}</strong></td><td>${esc(formatearFecha(s.fecha))}</td><td>${esc(s.area)}</td><td>${esc(s.tipo)}</td>
+                <td><strong>${esc(s.folio)}</strong></td><td>${pillAmbito(s, 'solicitud')}</td><td>${esc(formatearFecha(s.fecha))}</td><td>${esc(s.area)}</td><td>${esc(s.tipo)}</td>
                 <td style="font-size:0.82rem;">${esc((s.descripcion || '').slice(0, 60))}${(s.descripcion || '').length > 60 ? '…' : ''}${oc ? `<br><a class="link-chip" onclick="switchSub('ord')">➜ ${esc(oc.folio)}</a>` : ''}</td>
                 <td>${estado}</td>
                 <td><button class="btn btn-primary btn-sm" onclick="reimprimir('sol','${esc(s.folio)}', this)">📄 PDF</button>
+                    <button class="btn btn-secondary btn-sm" title="Enviar por correo" onclick="enviarPorCorreo('sol','${esc(s.folio)}', this)">✉️</button>
                     <button class="btn btn-danger btn-sm" onclick="eliminarRegistro('sol','${esc(s.folio)}')">✕</button></td></tr>`;
-        }).join('') : `<tr class="empty-row"><td colspan="7">Sin solicitudes registradas.</td></tr>`;
+        }).join('') : `<tr class="empty-row"><td colspan="8">Sin solicitudes registradas.</td></tr>`;
 
         const ord = document.getElementById('tbody-hist-ord');
-        const ords = DB.ordenes.filter(match).slice().reverse();
+        const ords = ordenes.filter(match).slice().reverse();
         ord.innerHTML = ords.length ? ords.map(o => `<tr>
-                <td><strong>${esc(o.folio)}</strong></td><td>${esc(formatearFecha(o.fecha))}</td><td>${esc(o.proveedor)}</td>
+                <td><strong>${esc(o.folio)}</strong></td><td>${pillAmbito(o, 'orden')}</td><td>${esc(formatearFecha(o.fecha))}</td><td>${esc(o.proveedor)}</td>
                 <td>${money(o.total)}</td>
                 <td>${o.solicitudFolio ? `<span class="link-chip">${esc(o.solicitudFolio)}</span>` : '<span class="pill pill-gray">—</span>'}</td>
                 <td><button class="btn btn-primary btn-sm" onclick="reimprimir('ord','${esc(o.folio)}', this)">📄 PDF</button>
+                    <button class="btn btn-secondary btn-sm" title="Enviar al proveedor por correo" onclick="enviarPorCorreo('ord','${esc(o.folio)}', this)">✉️</button>
                     <button class="btn btn-danger btn-sm" onclick="eliminarRegistro('ord','${esc(o.folio)}')">✕</button></td></tr>`).join('')
-            : `<tr class="empty-row"><td colspan="6">Sin órdenes registradas.</td></tr>`;
+            : `<tr class="empty-row"><td colspan="7">Sin órdenes registradas.</td></tr>`;
 
         const ev = document.getElementById('tbody-hist-eval');
-        const evs = DB.evaluaciones.filter(match).slice().reverse();
+        const evs = evaluaciones.filter(match).slice().reverse();
         ev.innerHTML = evs.length ? evs.map(e => `<tr>
-                <td>${esc(formatearFecha(e.fecha))}</td><td>${esc(e.proveedor)}</td>
+                <td>${esc(formatearFecha(e.fecha))}</td><td>${pillAmbito(e, 'evaluacion')}</td><td>${esc(e.proveedor)}</td>
                 <td><span class="pill ${e.calificacion >= 8 ? 'pill-green' : 'pill-red'}">${e.calificacion}</span></td>
                 <td>${esc(e.conclusion)}</td>
                 <td>${e.ordenFolio ? `<span class="link-chip">${esc(e.ordenFolio)}</span>` : '<span class="pill pill-gray">—</span>'}</td>
                 <td><button class="btn btn-primary btn-sm" onclick="reimprimir('eval','${esc(e.id)}', this)">📄 PDF</button>
+                    <button class="btn btn-secondary btn-sm" title="Enviar por correo" onclick="enviarPorCorreo('eval','${esc(e.id)}', this)">✉️</button>
                     <button class="btn btn-danger btn-sm" onclick="eliminarRegistro('eval','${esc(e.id)}')">✕</button></td></tr>`).join('')
-            : `<tr class="empty-row"><td colspan="6">Sin evaluaciones registradas.</td></tr>`;
+            : `<tr class="empty-row"><td colspan="7">Sin evaluaciones registradas.</td></tr>`;
     }
     function reimprimir(tipo, key, btn) {
         return accionUnica('pdf-' + tipo + '-' + key, btn, () => {
@@ -2242,6 +2439,133 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
             else if (tipo === 'eval') { const r = DB.evaluaciones.find(e => e.id === key); if (r) generarPDFEvaluacion(r); else showToast('No se encontró la evaluación', 'error'); }
         });
     }
+    // ============================================================
+    //  ENVÍO POR CORREO
+    //  Preferimos el envío real desde Apps Script (el PDF va adjunto).
+    //  Si el backend no responde, se cae a mailto: como en SEAOT.
+    // ============================================================
+    function buscarRegistro(tipo, key) {
+        if (tipo === 'sol') return DB.solicitudes.find(s => s.folio === key);
+        if (tipo === 'ord') return DB.ordenes.find(o => o.folio === key);
+        if (tipo === 'eval') return DB.evaluaciones.find(e => e.id === key);
+        return null;
+    }
+    function armarDocumento(tipo, r) {
+        if (tipo === 'sol') return armarPDFSolicitud(r);
+        if (tipo === 'ord') return armarPDFOrden(r);
+        return armarPDFEvaluacion(r);
+    }
+    function textoCorreo(tipo, r) {
+        const ambito = tipo === 'sol' ? textoAmbito(r, 'solicitud') : tipo === 'ord' ? textoAmbito(r, 'orden') : textoAmbito(r, 'evaluacion');
+        if (tipo === 'ord') {
+            const arts = (r.articulos || []).filter(a => a.desc)
+                .map(a => `  • ${a.desc} — ${a.cantidad || 1} x ${money(a.precio)}`).join('\n');
+            return {
+                asunto: `Orden de Compra ${r.folio} — Ejecutiva Ambiental`,
+                cuerpo: `Estimado proveedor,
+
+Adjuntamos la Orden de Compra ${r.folio} de Ejecutiva Ambiental.
+
+Datos de la orden
+  • Folio: ${r.folio}
+  • Fecha: ${formatearFecha(r.fecha)}
+  • Ámbito: ${ambito}
+  • Sucursal: ${r.sucursal || 'MATRIZ'}
+  • Total: ${money(r.total)}${r.condiciones ? '\n  • Condiciones de pago: ' + r.condiciones : ''}
+
+Artículos
+${arts || '  • Ver detalle en el PDF adjunto.'}
+
+Favor de confirmar la recepción de esta orden y la fecha estimada de entrega respondiendo a este correo.
+
+Datos de facturación y entrega
+  • Cliente: ${r.cliente || 'EJECUTIVA AMBIENTAL'}
+  • Dirección: ${r.direccion || ''}
+  • Teléfono: ${r.telefono || '222-941-7295'}
+
+Gracias,
+Ejecutiva Ambiental
+Tel: 222-941-7295`
+            };
+        }
+        if (tipo === 'sol') {
+            return {
+                asunto: `Solicitud de Compra ${r.folio} — Ejecutiva Ambiental`,
+                cuerpo: `Buen día,
+
+Se adjunta la Solicitud de Compra ${r.folio} para su revisión y autorización.
+
+  • Folio: ${r.folio}
+  • Fecha: ${formatearFecha(r.fecha)}
+  • Ámbito: ${ambito}
+  • Área que solicita: ${r.area || ''}
+  • Tipo: ${r.tipo || ''}
+
+Descripción de lo solicitado
+${r.descripcion || ''}${r.proveedores ? '\n\nProveedor(es) sugeridos\n' + r.proveedores : ''}
+
+Quedo atento a sus comentarios.
+
+Ejecutiva Ambiental
+Tel: 222-941-7295`
+            };
+        }
+        return {
+            asunto: `Evaluación de Proveedor — ${r.proveedor} — Ejecutiva Ambiental`,
+            cuerpo: `Buen día,
+
+Se adjunta la evaluación del proveedor ${r.proveedor}.
+
+  • Fecha: ${formatearFecha(r.fecha)}
+  • Ámbito: ${ambito}
+  • Calificación: ${r.calificacion}
+  • Conclusión: ${r.conclusion}${r.ordenFolio ? '\n  • Orden relacionada: ' + r.ordenFolio : ''}
+
+Ejecutiva Ambiental
+Tel: 222-941-7295`
+        };
+    }
+    function enviarPorCorreo(tipo, key, btn) {
+        return accionUnica('mail-' + tipo + '-' + key, btn, async () => {
+            const r = buscarRegistro(tipo, key);
+            if (!r) { showToast('No se encontró el registro', 'error'); return; }
+
+            const sugerido = tipo === 'ord' ? (r.correo || '') : '';
+            const para = (prompt('Enviar a (correo del destinatario):', sugerido) || '').trim();
+            if (!para) return;
+            if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(para)) { showToast('Correo inválido: ' + para, 'error'); return; }
+
+            const { pdf, nombre } = armarDocumento(tipo, r);
+            const { asunto, cuerpo } = textoCorreo(tipo, r);
+            const cc = AUTH.email || '';
+
+            if (syncOn()) {
+                try {
+                    const base64 = pdf.output('datauristring').split(',')[1];
+                    const res = await apiPost({ action: 'enviarCorreo', para, cc, asunto, cuerpo, adjunto: { nombre, base64 } });
+                    if (!res.ok) throw new Error(res.error || 'el servidor rechazó el envío');
+                    showToast('Correo enviado a ' + para + ' con el PDF adjunto', 'success');
+                    return;
+                } catch (e) {
+                    console.error(e);
+                    showToast('No se pudo enviar desde el servidor. Se abrirá su correo: adjunte el PDF descargado.', 'warning');
+                }
+            }
+            // Respaldo estilo SEAOT: abre el cliente de correo y descarga el PDF
+            // para adjuntarlo a mano (mailto no admite adjuntos).
+            guardarPDF(pdf, nombre);
+            abrirMailto(para, cc, asunto, cuerpo);
+        });
+    }
+
+    function abrirMailto(para, cc, asunto, cuerpo) {
+        const partes = [];
+        if (cc) partes.push('cc=' + encodeURIComponent(cc));
+        partes.push('subject=' + encodeURIComponent(asunto));
+        partes.push('body=' + encodeURIComponent(cuerpo));
+        window.location.href = 'mailto:' + encodeURIComponent(para) + '?' + partes.join('&');
+    }
+
     function eliminarRegistro(tipo, key) {
         if (!confirm('¿Eliminar este registro del historial? (No se puede deshacer)')) return;
         const coll = { sol: 'solicitud', ord: 'orden', eval: 'evaluacion' }[tipo];
@@ -2344,6 +2668,9 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         renderTodo();
         initSyncUI();
         iniciarAuth(); // exige login con Google (si hay base compartida) y luego sincroniza
+        // Sin base compartida no hay login que espere: se pregunta el ámbito ya.
+        // Con base compartida, se pregunta al terminar la primera sincronización.
+        if (!syncOn()) asegurarAmbito('solicitud');
         console.log('✅ Sistema de Compras EA cargado.');
     });
     </script>
