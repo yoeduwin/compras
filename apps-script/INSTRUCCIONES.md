@@ -142,6 +142,11 @@ ni conexión).
   seguridad adicional.
 - **¿Cambié el `Code.gs`?** Cada vez que lo edites: **Implementar → Administrar
   implementaciones → editar (lápiz) → Versión: Nueva → Implementar**.
+- **El formulario dice EMPRESA pero el folio sale SC (o el aviso "Serie
+  incorrecta").** Falta re-implementar: pegar el código en el editor no cambia
+  lo que responde la URL `/exec`. Ve a **Implementar → Administrar
+  implementaciones → editar (lápiz) → Versión: Nueva → Implementar**. El sistema
+  detecta esa inconsistencia y no guarda el registro, para no mezclar series.
 - **¿Qué series maneja?** Laboratorio usa `SC` (solicitud) y `OC` (orden);
   empresa usa `REQ` y `OCB`. Cada serie lleva su propio consecutivo por año y
   todas se calculan en la hoja. El sistema pregunta el ámbito antes de capturar.

@@ -410,13 +410,21 @@ function deleteRecord(collection, key) {
  * params: { para, cc, asunto, cuerpo, adjunto: { nombre, base64 } }
  */
 function enviarCorreo(params, remitente) {
-  var para = String(params.para || '').trim();
-  if (!para) return { ok: false, error: 'Falta el destinatario' };
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(para)) return { ok: false, error: 'Correo inválido: ' + para };
+  // Admite varios destinatarios separados por coma (Gmail los acepta así).
+  var re = /^[^@\s,]+@[^@\s,]+\.[^@\s,]+$/;
+  var lista = function (txt) {
+    return String(txt || '').split(/[,;]/).map(function (x) { return x.trim(); }).filter(function (x) { return x; });
+  };
+  var destinos = lista(params.para);
+  if (!destinos.length) return { ok: false, error: 'Falta el destinatario' };
+  var copias = lista(params.cc);
+  var malos = destinos.concat(copias).filter(function (x) { return !re.test(x); });
+  if (malos.length) return { ok: false, error: 'Correo inválido: ' + malos.join(', ') };
+  var para = destinos.join(',');
 
   var opciones = { name: 'Ejecutiva Ambiental' };
   if (remitente) opciones.replyTo = remitente;
-  if (params.cc) opciones.cc = String(params.cc).trim();
+  if (copias.length) opciones.cc = copias.join(',');
 
   var adj = params.adjunto;
   if (adj && adj.base64) {
