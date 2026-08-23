@@ -1121,39 +1121,6 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         </div>
     </div>
 
-    <!-- Envío por correo: destinatarios múltiples + nota opcional -->
-    <div id="modal-correo" class="modal-fondo">
-        <div class="modal-caja">
-            <h3>Enviar por correo</h3>
-            <p>Revise el mensaje antes de enviarlo. Puede editar el asunto y el texto; el PDF va adjunto.</p>
-            <div class="form-grid">
-                <div class="form-group full-width">
-                    <label for="correo-para">Para (separe varios con coma)</label>
-                    <input type="text" id="correo-para" placeholder="nombre@empresa.com, otro@empresa.com">
-                </div>
-                <div class="form-group full-width">
-                    <label for="correo-cc">Con copia</label>
-                    <input type="text" id="correo-cc" placeholder="opcional">
-                </div>
-                <div class="form-group full-width">
-                    <label for="correo-asunto">Asunto</label>
-                    <input type="text" id="correo-asunto">
-                </div>
-                <div class="form-group full-width">
-                    <label for="correo-cuerpo">Mensaje</label>
-                    <textarea id="correo-cuerpo" rows="12" style="font-family:inherit; font-size:0.85rem;"></textarea>
-                </div>
-                <div class="form-group full-width">
-                    <span class="hint">📎 Se adjunta: <strong id="correo-adjunto">—</strong></span>
-                </div>
-            </div>
-            <div class="action-buttons" style="margin-top:1rem; padding-top:1rem;">
-                <button class="btn btn-success" onclick="confirmarCorreo()">✉️ Enviar</button>
-                <button class="btn btn-secondary" onclick="cancelarCorreo()">Cancelar</button>
-            </div>
-        </div>
-    </div>
-
     <div id="toast" class="toast" style="display: none;"></div>
 
     <!-- Autenticación Google OAuth (mismo módulo y Client ID que SEA/SEADB) -->
@@ -2817,9 +2784,10 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     }
 
     // ============================================================
-    //  ENVÍO POR CORREO
-    //  El envío es 100 % desde Apps Script (Gmail) con el PDF adjunto.
-    //  Ya no se abre Outlook/mailto: si falla, se avisa y no se hace nada más.
+    //  ENVÍO POR CORREO (estilo SEAOT)
+    //  Al pulsar "Enviar por correo" se abre directamente el cliente de correo
+    //  (Outlook/Gmail) con el borrador cargado y se descarga el PDF para
+    //  adjuntarlo. El asunto y el cuerpo se editan ahí: sin ventana intermedia.
     // ============================================================
     function buscarRegistro(tipo, key) {
         if (tipo === 'sol') return DB.solicitudes.find(s => s.folio === key);
@@ -2931,42 +2899,19 @@ Tel: 222-941-7295`
     function correosInvalidos(txt) {
         return listaCorreos(txt).filter(x => !RE_CORREO.test(x));
     }
-    let _resolverCorreo = null;
-    // Abre el cuadro de envío con el mensaje YA redactado y editable, para que
-    // se pueda revisar antes de mandar nada. Solicitudes y evaluaciones se
-    // proponen a los correos internos; una orden, al correo del proveedor.
-    function pedirEnvio(tipo, r, asunto, cuerpo, adjunto) {
-        document.getElementById('correo-para').value = tipo === 'ord'
-            ? (r.correo || '')
-            : (CONFIG.CORREOS_INTERNOS || '');
-        // La copia no repite a quien ya está en "Para" (p. ej. uno mismo).
-        const yaEsta = listaCorreos(document.getElementById('correo-para').value).map(x => x.toLowerCase());
-        const copias = listaCorreos(tipo === 'ord' ? (CONFIG.CORREOS_INTERNOS || '') : (AUTH.email || ''))
-            .filter(x => !yaEsta.includes(x.toLowerCase()));
-        document.getElementById('correo-cc').value = copias.join(', ');
-        document.getElementById('correo-asunto').value = asunto;
-        document.getElementById('correo-cuerpo').value = cuerpo;
-        document.getElementById('correo-adjunto').textContent = adjunto;
-        document.getElementById('modal-correo').classList.add('abierto');
-        document.getElementById('correo-para').focus();
-        return new Promise(res => { _resolverCorreo = res; });
-    }
-    function cerrarCorreo(valor) {
-        document.getElementById('modal-correo').classList.remove('abierto');
-        const r = _resolverCorreo; _resolverCorreo = null;
-        if (r) r(valor);
-    }
-    function cancelarCorreo() { cerrarCorreo(null); }
-    function confirmarCorreo() {
-        const para = document.getElementById('correo-para').value.trim();
-        const cc = document.getElementById('correo-cc').value.trim();
-        const asunto = document.getElementById('correo-asunto').value.trim();
-        const cuerpo = document.getElementById('correo-cuerpo').value;
-        if (!listaCorreos(para).length) { showToast('Indique al menos un destinatario', 'error'); return; }
-        const malos = correosInvalidos(para).concat(correosInvalidos(cc));
-        if (malos.length) { showToast('Correo inválido: ' + malos.join(', '), 'error'); return; }
-        if (!asunto) { showToast('El asunto no puede quedar vacío', 'error'); return; }
-        cerrarCorreo({ para: listaCorreos(para).join(','), cc: listaCorreos(cc).join(','), asunto, cuerpo });
+    // Abre el cliente de correo (Outlook/Gmail) con el borrador ya cargado —
+    // destinatario, asunto y cuerpo— para revisarlo y enviarlo ahí mismo. El
+    // asunto y el cuerpo se editan directamente en el cliente, así que ya no hay
+    // ventana intermedia. mailto no admite adjuntos: el PDF se descarga aparte.
+    function abrirMailto(para, cc, asunto, cuerpo) {
+        // Cada dirección se codifica por separado: la coma que las separa debe
+        // llegar literal para que el cliente de correo reconozca varios destinos.
+        const dirs = t => listaCorreos(t).map(encodeURIComponent).join(',');
+        const partes = [];
+        if (cc) partes.push('cc=' + dirs(cc));
+        partes.push('subject=' + encodeURIComponent(asunto));
+        partes.push('body=' + encodeURIComponent(cuerpo));
+        window.location.href = 'mailto:' + dirs(para) + '?' + partes.join('&');
     }
 
     // Lo recién guardado se puede mandar sin ir al historial.
@@ -2987,34 +2932,21 @@ Tel: 222-941-7295`
     }
 
     function enviarPorCorreo(tipo, key, btn) {
-        return accionUnica('mail-' + tipo + '-' + key, btn, async () => {
+        return accionUnica('mail-' + tipo + '-' + key, btn, () => {
             const r = buscarRegistro(tipo, key);
             if (!r) { showToast('No se encontró el registro', 'error'); return; }
 
-            // El PDF se arma antes de abrir el cuadro: así se muestra el nombre
-            // exacto del adjunto y el envío no depende de nada posterior.
+            // Se arma y descarga el PDF (para adjuntarlo en el correo) y se abre
+            // el cliente de correo con el borrador listo. Sin ventana intermedia:
+            // el asunto y el cuerpo se revisan y editan directamente en Outlook.
             const { pdf, nombre } = armarDocumento(tipo, r);
-            const borrador = textoCorreo(tipo, r);
-            const envio = await pedirEnvio(tipo, r, borrador.asunto, borrador.cuerpo, nombre);
-            if (!envio) return;
-            const { para, cc, asunto, cuerpo } = envio;
-
-            // El correo lo manda el servidor (Gmail) con el PDF adjunto. Ya no se
-            // abre Outlook/mailto: si el envío falla, se avisa y no pasa nada más.
-            if (!syncOn()) {
-                showToast('El envío por correo necesita la hoja de Google conectada.', 'error');
-                return;
-            }
-            const coll = { sol: 'solicitud', ord: 'orden', eval: 'evaluacion' }[tipo];
-            try {
-                const base64 = pdf.output('datauristring').split(',')[1];
-                const res = await apiPost({ action: 'enviarCorreo', ambito: ambitoDe(r, coll), para, cc, asunto, cuerpo, adjunto: { nombre, base64 } });
-                if (!res.ok) throw new Error(res.error || 'el servidor rechazó el envío');
-                showToast('Correo enviado a ' + para + ' con el PDF adjunto', 'success');
-            } catch (e) {
-                console.error(e);
-                showToast('No se pudo enviar el correo: ' + e.message, 'error');
-            }
+            const { asunto, cuerpo } = textoCorreo(tipo, r);
+            // Destinatario propuesto: la orden va al proveedor; solicitud y
+            // evaluación, a los correos internos. Todo editable en el cliente.
+            const para = tipo === 'ord' ? (r.correo || '') : (CONFIG.CORREOS_INTERNOS || '');
+            guardarPDF(pdf, nombre);
+            abrirMailto(para, '', asunto, cuerpo);
+            showToast('Se descargó el PDF (' + nombre + ') y se abrió su correo: adjúntelo antes de enviar.', 'info');
         });
     }
 
