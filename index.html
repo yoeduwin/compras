@@ -715,6 +715,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 
                 <div class="action-buttons">
                     <button class="btn btn-success" onclick="accionUnica('guardar-solicitud', this, guardarYGenerarSolicitud)">💾 Guardar y Generar PDF</button>
+                    <button class="btn btn-secondary" onclick="accionUnica('preview-solicitud', this, vistaPreviaSolicitud)" title="Genera el PDF para revisarlo sin registrarlo ni asignar folio">👁️ Vista previa (sin registrar)</button>
                     <button class="btn btn-primary" id="btn-mail-sol" onclick="enviarUltimo('sol', this)" title="Disponible al guardar el documento (el correo adjunta el PDF con folio)">✉️ Enviar por correo</button>
                     <button class="btn btn-secondary" onclick="limpiarFormulario('solicitud')">🗑️ Limpiar Formulario</button>
                 </div>
@@ -864,6 +865,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 
                 <div class="action-buttons">
                     <button class="btn btn-success" onclick="accionUnica('guardar-orden', this, guardarYGenerarOrden)">💾 Guardar y Generar PDF</button>
+                    <button class="btn btn-secondary" onclick="accionUnica('preview-orden', this, vistaPreviaOrden)" title="Genera el PDF para revisarlo sin registrarlo ni asignar folio">👁️ Vista previa (sin registrar)</button>
                     <button class="btn btn-primary" id="btn-mail-ord" onclick="enviarUltimo('ord', this)" title="Disponible al guardar el documento (el correo adjunta el PDF con folio)">✉️ Enviar por correo</button>
                     <button class="btn btn-secondary" onclick="limpiarFormulario('orden')">🗑️ Limpiar Formulario</button>
                 </div>
@@ -975,6 +977,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
                 <div class="action-buttons">
                     <button class="btn btn-primary" onclick="calcularCalificacion()">🧮 Calcular Calificación</button>
                     <button class="btn btn-success" onclick="accionUnica('guardar-evaluacion', this, guardarYGenerarEvaluacion)">💾 Guardar y Generar PDF</button>
+                    <button class="btn btn-secondary" onclick="accionUnica('preview-evaluacion', this, vistaPreviaEvaluacion)" title="Genera el PDF para revisarlo sin registrarlo">👁️ Vista previa (sin registrar)</button>
                     <button class="btn btn-primary" id="btn-mail-eval" onclick="enviarUltimo('eval', this)" title="Disponible al guardar el documento (el correo adjunta el PDF con folio)">✉️ Enviar por correo</button>
                     <button class="btn btn-secondary" onclick="limpiarFormulario('evaluacion')">🗑️ Limpiar Formulario</button>
                 </div>
@@ -989,11 +992,13 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 
                 <div class="search-box"><input type="text" id="buscar-proveedor" placeholder="🔍 Buscar proveedor..." onkeyup="filtrarProveedores()"></div>
 
+                <div id="alerta-reevaluacion" style="display:none; background:#fff3cd; border:1px solid #ffe08a; border-left:5px solid #e0a800; color:#856404; border-radius:8px; padding:0.9rem 1.1rem; margin-bottom:1rem; font-size:0.9rem;"></div>
+
                 <div class="table-container">
                     <table id="tabla-proveedores">
                         <thead><tr>
                             <th style="width:40px;">N°</th><th>Nombre del proveedor</th><th>Servicio(s) que provee</th>
-                            <th style="width:100px;">Ingreso</th><th>Dirección</th><th>Número</th><th>Correo</th>
+                            <th style="width:120px;">Ingreso / Reevaluación</th><th>Dirección</th><th>Número</th><th>Correo</th>
                             <th style="width:90px;">Últ. eval.</th><th style="width:70px;">Acciones</th>
                         </tr></thead>
                         <tbody id="tbody-proveedores"></tbody>
@@ -1104,11 +1109,11 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
             <h3 id="modal-ambito-titulo">¿Esta compra es para el laboratorio?</h3>
             <p>Define la serie del folio y el historial donde queda registrada. No se puede cambiar después de guardar.</p>
             <div class="modal-opciones">
-                <button type="button" class="modal-opcion" onclick="responderAmbito('laboratorio')">
+                <button type="button" class="modal-opcion" id="opcion-ambito-lab" onclick="responderAmbito('laboratorio')">
                     <div class="mo-titulo">🔬 Laboratorio</div>
                     <div class="mo-series" id="modal-series-lab"></div>
                 </button>
-                <button type="button" class="modal-opcion" onclick="responderAmbito('empresa')">
+                <button type="button" class="modal-opcion" id="opcion-ambito-emp" onclick="responderAmbito('empresa')">
                     <div class="mo-titulo">🏢 Empresa</div>
                     <div class="mo-series" id="modal-series-emp"></div>
                 </button>
@@ -1333,11 +1338,19 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         return SERIES.solicitud[ambito] + '-AA-NNN (solicitud) · ' + SERIES.orden[ambito] + '-AA-NNN (orden)';
     }
     // Pregunta el ámbito con el modal. Devuelve una promesa con la respuesta.
+    // Si el usuario sólo tiene acceso a un ámbito, se elige solo (sin preguntar).
     function preguntarAmbito(tipo) {
+        const permit = ambitosPermitidos();
+        if (permit.length === 1) return Promise.resolve(permit[0]);
         document.getElementById('modal-ambito-titulo').textContent =
             tipo === 'evaluacion' ? '¿Esta evaluación es del laboratorio?' : '¿Esta compra es para el laboratorio?';
         document.getElementById('modal-series-lab').textContent = seriesDe('laboratorio');
         document.getElementById('modal-series-emp').textContent = seriesDe('empresa');
+        // Muestra sólo las opciones que el usuario puede usar.
+        const optLab = document.getElementById('opcion-ambito-lab');
+        const optEmp = document.getElementById('opcion-ambito-emp');
+        if (optLab) optLab.style.display = permit.includes('laboratorio') ? '' : 'none';
+        if (optEmp) optEmp.style.display = permit.includes('empresa') ? '' : 'none';
         document.getElementById('modal-ambito').classList.add('abierto');
         return new Promise(res => { _resolverAmbito = res; });
     }
@@ -1375,6 +1388,29 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         if (tipo === 'evaluacion') { document.getElementById('orden-rel').value = ''; poblarOrdenesRel(); }
         if (tipo !== 'evaluacion') await refrescarFolios();
         showToast('Ámbito: ' + AMBITO_NOMBRE[nuevo].replace(/^\S+\s/, ''), 'info');
+    }
+
+    // Ajusta la interfaz a los ámbitos permitidos del usuario (tras el pull):
+    // filtros del historial, ámbito por defecto y opciones del modal.
+    function aplicarAccesos() {
+        const permit = ambitosPermitidos();
+        const soloUno = permit.length === 1;
+        // Botones del filtro de historial: se ocultan los no permitidos.
+        document.querySelectorAll('#filtro-ambito button[data-amb]').forEach(b => {
+            const a = b.dataset.amb;
+            const visible = a === 'todos' ? !soloUno : permit.includes(a);
+            b.style.display = visible ? '' : 'none';
+        });
+        // Si el filtro actual ya no es válido, cae al ámbito permitido (o "todos").
+        if (FILTRO_AMBITO !== 'todos' && !permit.includes(FILTRO_AMBITO)) FILTRO_AMBITO = 'todos';
+        if (soloUno) FILTRO_AMBITO = permit[0];
+        document.querySelectorAll('#filtro-ambito button').forEach(b => b.classList.toggle('activo', b.dataset.amb === FILTRO_AMBITO));
+        // Si un formulario tenía elegido un ámbito ahora no permitido, se reinicia.
+        ['solicitud', 'orden', 'evaluacion'].forEach(tipo => {
+            if (AMBITO[tipo] && !permit.includes(AMBITO[tipo])) { AMBITO[tipo] = null; pintarAmbito(tipo); }
+            if (soloUno && !AMBITO[tipo]) { AMBITO[tipo] = permit[0]; pintarAmbito(tipo); }
+        });
+        renderHistorial();
     }
 
     // El folio que devuelve el servidor DEBE pertenecer a la serie del ámbito.
@@ -1449,7 +1485,14 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     // ============================================================
     // La configuración vive en CONFIG (en el código), no en la interfaz.
     let SYNC = { url: '' };
-    let AUTH = { email: '' };
+    let AUTH = { email: '', ambitos: null };   // ambitos: null = aún no se sabe (backend manda)
+    // Ámbitos que este usuario puede ver/usar. Sin hoja conectada (modo local)
+    // no hay control de acceso: se permiten los dos.
+    function ambitosPermitidos() {
+        if (!syncOn()) return ['laboratorio', 'empresa'];
+        return (AUTH.ambitos && AUTH.ambitos.length) ? AUTH.ambitos : ['laboratorio', 'empresa'];
+    }
+    function puedeAmbito(a) { return ambitosPermitidos().indexOf(a) >= 0; }
     function loadSync() {
         SYNC.url = (CONFIG.SHEETS_URL || '').trim();
     }
@@ -1521,6 +1564,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
             const flushed = await flushPending();
             const res = await apiGet('pull');
             if (!res.ok) throw new Error(res.error || 'pull falló');
+            if (res.ambitos) { AUTH.ambitos = res.ambitos; aplicarAccesos(); }
             const rem = res.data;
             if (flushed && !(DB._pending && DB._pending.length)) {
                 // sin pendientes: el remoto es autoritativo
@@ -2361,6 +2405,26 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     // ============================================================
     //  LISTA DE PROVEEDORES
     // ============================================================
+    // ── Reevaluación de proveedores al tercer año ──────────────────────────
+    // La cuenta arranca en la fecha de ingreso y se reinicia con cada nueva
+    // evaluación: un proveedor "vence" a los 3 años de su última evaluación
+    // (o de su ingreso, si nunca se ha evaluado).
+    const REEVAL_ANIOS = 3;
+    function baseReevaluacion(p) {
+        const ts = [p.ingreso, p.ultimaEval].filter(Boolean)
+            .map(f => new Date(f + (String(f).length <= 10 ? 'T00:00:00' : '')).getTime())
+            .filter(t => !isNaN(t));
+        return ts.length ? Math.max(...ts) : null;
+    }
+    function aniosDeReevaluacion(p) {
+        const base = baseReevaluacion(p);
+        if (base == null) return null;
+        return (Date.now() - base) / (365.25 * 24 * 3600 * 1000);
+    }
+    function necesitaReevaluacion(p) {
+        const a = aniosDeReevaluacion(p);
+        return a != null && a >= REEVAL_ANIOS;
+    }
     function renderProveedores() {
         const tbody = document.getElementById('tbody-proveedores');
         const dl = document.getElementById('dl-proveedores');
@@ -2374,15 +2438,22 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
                     .map(p => `<option value="${esc(p.id)}">${esc(p.nombre)}</option>`).join('');
             sel.value = actual; // conserva la selección si sigue existiendo
         }
+        actualizarAlertaReevaluacion();
         if (DB.proveedores.length === 0) {
             tbody.innerHTML = `<tr class="empty-row"><td colspan="9">No hay proveedores registrados.</td></tr>`; return;
         }
-        tbody.innerHTML = DB.proveedores.map((p, i) => `
-            <tr>
+        tbody.innerHTML = DB.proveedores.map((p, i) => {
+            const reeval = necesitaReevaluacion(p);
+            const anios = aniosDeReevaluacion(p);
+            const aviso = reeval
+                ? `<br><span class="pill pill-red" title="Última evaluación/ingreso hace ${Math.floor(anios)} año(s)">⚠️ Reevaluar (${Math.floor(anios)} años)</span>`
+                : (anios != null ? `<br><span class="hint">${Math.floor(anios)} año(s)</span>` : '');
+            return `
+            <tr${reeval ? ' style="background:#fff8ec;"' : ''}>
                 <td>${i + 1}</td>
                 <td>${esc(p.nombre)}</td>
                 <td style="font-size:0.82rem;">${esc(p.servicio)}</td>
-                <td>${esc(formatearFecha(p.ingreso))}</td>
+                <td>${esc(formatearFecha(p.ingreso))}${aviso}</td>
                 <td style="font-size:0.8rem;">${esc(p.direccion)}</td>
                 <td style="font-size:0.82rem;">${esc(p.numero)}</td>
                 <td style="font-size:0.8rem;">${esc(p.correo)}</td>
@@ -2391,7 +2462,18 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
                     <button class="btn btn-secondary btn-sm" title="Editar" onclick="editarProveedor('${p.id}')">✎</button>
                     <button class="btn btn-danger btn-sm" title="Eliminar" onclick="eliminarProveedor('${p.id}')">✕</button>
                 </td>
-            </tr>`).join('');
+            </tr>`; }).join('');
+    }
+    // Banner con los proveedores que ya cumplieron 3 años y toca reevaluar.
+    function actualizarAlertaReevaluacion() {
+        const el = document.getElementById('alerta-reevaluacion');
+        if (!el) return;
+        const pend = DB.proveedores.filter(necesitaReevaluacion);
+        if (!pend.length) { el.style.display = 'none'; return; }
+        const nombres = pend.map(p => esc(p.nombre)).join(', ');
+        el.innerHTML = `⚠️ <strong>${pend.length} proveedor(es) requieren reevaluación</strong> (3 años o más desde su última evaluación o ingreso): ${nombres}. ` +
+            'Realice una nueva Evaluación de Proveedor para reiniciar el periodo.';
+        el.style.display = 'block';
     }
     // Orden de Compra: al elegir un proveedor confiable del selector, copia su
     // nombre al campo de texto. "Nuevo / no listado" deja el campo libre.
@@ -2595,7 +2677,13 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         const q = (document.getElementById('buscar-historial').value || '').toLowerCase();
         const match = obj => JSON.stringify(obj).toLowerCase().includes(q);
         // Laboratorio y empresa se consultan por separado (o juntos con "Todos").
-        const delAmbito = tipo => r => FILTRO_AMBITO === 'todos' || ambitoDe(r, tipo) === FILTRO_AMBITO;
+        // Además nunca se muestran ámbitos que el usuario no tiene permitidos.
+        const permit = ambitosPermitidos();
+        const delAmbito = tipo => r => {
+            const a = ambitoDe(r, tipo);
+            if (permit.indexOf(a) < 0) return false;
+            return FILTRO_AMBITO === 'todos' || a === FILTRO_AMBITO;
+        };
         const solicitudes = DB.solicitudes.filter(delAmbito('solicitud'));
         const ordenes = DB.ordenes.filter(delAmbito('orden'));
         const evaluaciones = DB.evaluaciones.filter(delAmbito('evaluacion'));
@@ -2646,9 +2734,92 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         });
     }
     // ============================================================
+    //  VISTA PREVIA (PDF sin registrar)
+    //  Genera el PDF con lo capturado, marcado como BORRADOR, sin guardar en
+    //  la hoja ni consumir folio. Sirve para revisar antes de registrar.
+    // ============================================================
+    const FOLIO_BORRADOR = 'BORRADOR — sin registrar';
+    async function vistaPreviaSolicitud() {
+        const fecha = document.getElementById('fecha-solicitud').value;
+        const area = document.getElementById('area-solicita').value;
+        const descripcion = document.getElementById('descripcion').value.trim();
+        const tipo = document.getElementById('tipo-solicitud').value;
+        if (!fecha || !area || !descripcion) { showToast('Complete fecha, área y descripción para la vista previa', 'error'); return; }
+        if (!AMBITO.solicitud) await asegurarAmbito('solicitud');
+        const ambito = AMBITO.solicitud;
+        if (!ambito) return;
+        const rec = {
+            folio: FOLIO_BORRADOR, ambito, fecha, area, tipo, descripcion,
+            proveedores: document.getElementById('proveedores-sugeridos').value.trim(),
+            solicito: valSelect('solicito', 'solicito-otro'),
+            autorizo: valSelect('autorizo-sol', 'autorizo-sol-otro'),
+            estado: 'Borrador'
+        };
+        try {
+            const { pdf } = armarPDFSolicitud(rec);
+            guardarPDF(pdf, 'Solicitud_BORRADOR.pdf');
+            showToast('Vista previa generada (no se registró ni se asignó folio)', 'info');
+        } catch (e) { console.error(e); showToast('No se pudo generar la vista previa', 'error'); }
+    }
+    async function vistaPreviaOrden() {
+        const proveedor = document.getElementById('proveedor').value.trim();
+        const fecha = document.getElementById('fecha-orden').value;
+        const articulos = leerArticulos().filter(a => a.desc || a.precio);
+        if (!proveedor || !fecha) { showToast('Complete proveedor y fecha para la vista previa', 'error'); return; }
+        if (articulos.length === 0) { showToast('Agregue al menos un artículo', 'error'); return; }
+        if (!AMBITO.orden) await asegurarAmbito('orden');
+        const ambito = AMBITO.orden;
+        if (!ambito) return;
+        const t = calcularTotales();
+        const rec = {
+            folio: FOLIO_BORRADOR, ambito, fecha, proveedor,
+            cliente: document.getElementById('cliente').value.trim(),
+            telefono: document.getElementById('telefono').value.trim(),
+            direccion: document.getElementById('direccion').value.trim(),
+            correo: document.getElementById('correo').value.trim(),
+            sucursal: document.getElementById('sucursal').value.trim() || 'MATRIZ',
+            articulos, descuento: t.descuento, subtotal: t.subtotal, iva: t.iva, total: t.total,
+            condiciones: document.getElementById('condiciones-pago').value.trim(),
+            solicitudFolio: document.getElementById('solicitud-rel').value,
+            realizo: valSelect('realizo', 'realizo-otro'),
+            reviso: valSelect('reviso', 'reviso-otro'),
+            autorizo: valSelect('autorizo-orden', 'autorizo-orden-otro')
+        };
+        try {
+            const { pdf } = armarPDFOrden(rec);
+            guardarPDF(pdf, 'Orden_BORRADOR.pdf');
+            showToast('Vista previa generada (no se registró ni se asignó folio)', 'info');
+        } catch (e) { console.error(e); showToast('No se pudo generar la vista previa', 'error'); }
+    }
+    async function vistaPreviaEvaluacion() {
+        const proveedor = document.getElementById('proveedor-eval').value.trim();
+        if (!proveedor) { showToast('Ingrese el nombre del proveedor para la vista previa', 'error'); return; }
+        const prom = calcularCalificacion();
+        if (prom === null) return;
+        if (!AMBITO.evaluacion) await asegurarAmbito('evaluacion');
+        const ambito = AMBITO.evaluacion;
+        if (!ambito) return;
+        const rec = {
+            id: 'BORRADOR', ambito, proveedor,
+            fecha: document.getElementById('fecha-eval').value || new Date().toISOString().split('T')[0],
+            ordenFolio: document.getElementById('orden-rel').value,
+            secciones: leerEvaluacion(),
+            calificacion: Number(prom.toFixed(1)),
+            conclusion: document.getElementById('conclusion').value || (prom >= 8 ? 'APROBADO' : 'NO APROBADO'),
+            elaboro: document.getElementById('elaboro-eval').value,
+            reviso: document.getElementById('reviso-eval').value
+        };
+        try {
+            const { pdf } = armarPDFEvaluacion(rec);
+            guardarPDF(pdf, 'Evaluacion_BORRADOR.pdf');
+            showToast('Vista previa generada (no se registró)', 'info');
+        } catch (e) { console.error(e); showToast('No se pudo generar la vista previa', 'error'); }
+    }
+
+    // ============================================================
     //  ENVÍO POR CORREO
-    //  Preferimos el envío real desde Apps Script (el PDF va adjunto).
-    //  Si el backend no responde, se cae a mailto: como en SEAOT.
+    //  El envío es 100 % desde Apps Script (Gmail) con el PDF adjunto.
+    //  Ya no se abre Outlook/mailto: si falla, se avisa y no se hace nada más.
     // ============================================================
     function buscarRegistro(tipo, key) {
         if (tipo === 'sol') return DB.solicitudes.find(s => s.folio === key);
@@ -2828,34 +2999,23 @@ Tel: 222-941-7295`
             if (!envio) return;
             const { para, cc, asunto, cuerpo } = envio;
 
-            if (syncOn()) {
-                try {
-                    const base64 = pdf.output('datauristring').split(',')[1];
-                    const res = await apiPost({ action: 'enviarCorreo', para, cc, asunto, cuerpo, adjunto: { nombre, base64 } });
-                    if (!res.ok) throw new Error(res.error || 'el servidor rechazó el envío');
-                    showToast('Correo enviado a ' + para + ' con el PDF adjunto', 'success');
-                    return;
-                } catch (e) {
-                    console.error(e);
-                    showToast('No se pudo enviar desde el servidor. Se abrirá su correo: adjunte el PDF descargado.', 'warning');
-                }
+            // El correo lo manda el servidor (Gmail) con el PDF adjunto. Ya no se
+            // abre Outlook/mailto: si el envío falla, se avisa y no pasa nada más.
+            if (!syncOn()) {
+                showToast('El envío por correo necesita la hoja de Google conectada.', 'error');
+                return;
             }
-            // Respaldo estilo SEAOT: abre el cliente de correo y descarga el PDF
-            // para adjuntarlo a mano (mailto no admite adjuntos).
-            guardarPDF(pdf, nombre);
-            abrirMailto(para, cc, asunto, cuerpo);
+            const coll = { sol: 'solicitud', ord: 'orden', eval: 'evaluacion' }[tipo];
+            try {
+                const base64 = pdf.output('datauristring').split(',')[1];
+                const res = await apiPost({ action: 'enviarCorreo', ambito: ambitoDe(r, coll), para, cc, asunto, cuerpo, adjunto: { nombre, base64 } });
+                if (!res.ok) throw new Error(res.error || 'el servidor rechazó el envío');
+                showToast('Correo enviado a ' + para + ' con el PDF adjunto', 'success');
+            } catch (e) {
+                console.error(e);
+                showToast('No se pudo enviar el correo: ' + e.message, 'error');
+            }
         });
-    }
-
-    function abrirMailto(para, cc, asunto, cuerpo) {
-        // Cada dirección se codifica por separado: la coma que las separa debe
-        // llegar literal para que el cliente de correo reconozca varios destinos.
-        const dirs = t => listaCorreos(t).map(encodeURIComponent).join(',');
-        const partes = [];
-        if (cc) partes.push('cc=' + dirs(cc));
-        partes.push('subject=' + encodeURIComponent(asunto));
-        partes.push('body=' + encodeURIComponent(cuerpo));
-        window.location.href = 'mailto:' + dirs(para) + '?' + partes.join('&');
     }
 
     function eliminarRegistro(tipo, key) {
