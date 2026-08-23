@@ -12,6 +12,9 @@
  *   • El Client ID vive en Propiedades del Script (no se codifica aquí).
  *   • Los correos autorizados viven en la pestaña "Usuarios" de esta misma
  *     hoja — se editan sin tocar código.
+ *   • La columna "ambitos" de esa pestaña decide QUÉ ve/hace cada correo:
+ *     laboratorio (SC/OC) · empresa (REQ/OCB) · ambos (o vacío = ambos).
+ *     El backend filtra el pull y rechaza escrituras fuera del ámbito.
  *
  * CONFIGURACIÓN (una sola vez, ver apps-script/INSTRUCCIONES.md):
  *   1. Editor de Apps Script → ⚙ Configuración del proyecto → Propiedades del
@@ -73,7 +76,9 @@ function inferirAmbito_(collection, r) {
 
 // ── Configuración de seguridad ─────────────────────────────────────────────
 var SHEET_USUARIOS = 'Usuarios';                 // pestaña con la lista blanca
-var USUARIOS_HEADERS = ['correo', 'nombre', 'activo', 'alta'];
+// La columna "ambitos" controla QUÉ puede ver/hacer cada correo:
+//   laboratorio | empresa | ambos (o vacío = ambos, para no romper altas viejas)
+var USUARIOS_HEADERS = ['correo', 'nombre', 'activo', 'alta', 'ambitos'];
 // Correo(s) que se siembran al crear la pestaña Usuarios por primera vez.
 var USUARIOS_INICIALES = ['eduwin.ejecutiva@gmail.com'];
 
@@ -98,19 +103,49 @@ function handle(e, params) {
 
     // Contrato que espera auth.js (SEAAuth) para bloquear la app antes de cargar.
     if (action === 'verificarAcceso') {
-      if (auth.ok) return json({ success: true, email: auth.email });
+      if (auth.ok) return json({ success: true, email: auth.email, ambitos: auth.ambitos });
       return json({ success: false, error: 'AUTH_REQUIRED', message: auth.error });
     }
 
     // Para el resto de acciones: si no está autorizado, cortar aquí.
     if (!auth.ok) return json({ ok: false, authRequired: true, error: auth.error });
 
-    if (action === 'pull')   return json({ ok: true, data: pullAll() });
-    if (action === 'nextFolio') return json(nextFolio(params.collection, params.year, params.ambito));
-    if (action === 'enviarCorreo') return json(enviarCorreo(params, auth.email));
-    if (action === 'add')    return json(addRecord(params.collection, params.record || {}));
-    if (action === 'upsert') return json(upsertRecord(params.collection, params.record || {}));
-    if (action === 'delete') return json(deleteRecord(params.collection, params.key));
+    // pull sólo devuelve los ámbitos que el usuario puede ver (los proveedores
+    // son compartidos). Además informa los ámbitos permitidos para la interfaz.
+    if (action === 'pull')   return json({ ok: true, data: pullAll(auth.ambitos), ambitos: auth.ambitos });
+
+    if (action === 'nextFolio') {
+      if (!puedeAmbito_(auth, params.ambito)) return json(negadoAmbito_(params.ambito));
+      return json(nextFolio(params.collection, params.year, params.ambito));
+    }
+    if (action === 'enviarCorreo') {
+      if (params.ambito && !puedeAmbito_(auth, params.ambito)) return json(negadoAmbito_(params.ambito));
+      return json(enviarCorreo(params, auth.email));
+    }
+    if (action === 'add') {
+      var recAdd = params.record || {};
+      if (!puedeAmbito_(auth, recAdd.ambito)) return json(negadoAmbito_(recAdd.ambito));
+      return json(addRecord(params.collection, recAdd));
+    }
+    if (action === 'upsert') {
+      var recUp = params.record || {};
+      // Los proveedores son compartidos entre ámbitos; el resto se valida.
+      if (params.collection !== 'proveedor') {
+        var ambUp = recUp.ambito || inferirAmbito_(params.collection, recUp);
+        if (!puedeAmbito_(auth, ambUp)) return json(negadoAmbito_(ambUp));
+      }
+      return json(upsertRecord(params.collection, recUp));
+    }
+    if (action === 'delete') {
+      if (params.collection !== 'proveedor') {
+        var existente = findRecord_(params.collection, params.key);
+        if (existente) {
+          var ambDel = inferirAmbito_(params.collection, existente);
+          if (!puedeAmbito_(auth, ambDel)) return json(negadoAmbito_(ambDel));
+        }
+      }
+      return json(deleteRecord(params.collection, params.key));
+    }
     return json({ ok: false, error: 'Acción no reconocida: ' + action });
   } catch (err) {
     return json({ ok: false, error: String(err) });
@@ -133,10 +168,33 @@ function json(obj) {
 function verificarAcceso(idToken) {
   var info = verificarIdToken_(idToken);
   if (!info) return { ok: false, error: 'Debes iniciar sesión con Google.' };
-  if (!usuarioAutorizado_(info.email)) {
+  var u = buscarUsuario_(info.email);
+  if (!u || !u.activo) {
     return { ok: false, error: 'Acceso no autorizado para ' + info.email };
   }
-  return { ok: true, email: info.email };
+  return { ok: true, email: info.email, ambitos: u.ambitos };
+}
+
+/** Normaliza el texto de la columna "ambitos" a una lista. Vacío/ambos = los dos. */
+function parseAmbitos_(txt) {
+  var s = String(txt == null ? '' : txt).toLowerCase().trim();
+  if (!s || s === 'ambos' || s === 'todos' || s === 'all' || s === '*') return AMBITOS.slice();
+  var out = [];
+  s.split(/[,;/|]+/).forEach(function (t) {
+    t = t.trim();
+    if (t.indexOf('lab') === 0) { if (out.indexOf('laboratorio') < 0) out.push('laboratorio'); }
+    else if (t.indexOf('emp') === 0) { if (out.indexOf('empresa') < 0) out.push('empresa'); }
+  });
+  return out.length ? out : AMBITOS.slice();
+}
+
+/** ¿Puede este usuario (auth) operar en este ámbito? */
+function puedeAmbito_(auth, ambito) {
+  var a = ambitoDe_(ambito);
+  return !!(auth && auth.ambitos && auth.ambitos.indexOf(a) >= 0);
+}
+function negadoAmbito_(ambito) {
+  return { ok: false, error: 'Sin permiso para el ámbito ' + ambitoDe_(ambito) + '. Pide acceso al administrador (pestaña Usuarios, columna ambitos).' };
 }
 
 /**
@@ -180,26 +238,30 @@ function verificarIdToken_(idToken) {
 }
 
 /**
- * ¿El correo está activo en la pestaña "Usuarios"?
- * Columnas: correo | nombre | activo | alta. "activo" acepta vacío/sí/true/1.
+ * Busca el correo en la pestaña "Usuarios" y devuelve { activo, ambitos } o null.
+ * Columnas: correo | nombre | activo | alta | ambitos.
+ *   "activo"  acepta vacío/sí/true/1 como autorizado.
+ *   "ambitos" acepta laboratorio | empresa | ambos (vacío = ambos).
  */
-function usuarioAutorizado_(email) {
-  if (!email) return false;
+function buscarUsuario_(email) {
+  if (!email) return null;
   var emailLower = String(email).toLowerCase().trim();
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ss.getSheetByName(SHEET_USUARIOS);
-  if (!sh) return false;                       // sin lista → nadie autorizado (falla cerrado)
+  if (!sh) return null;                         // sin lista → nadie autorizado (falla cerrado)
   var last = sh.getLastRow();
-  if (last < 2) return false;
-  var values = sh.getRange(2, 1, last - 1, 3).getValues(); // correo | nombre | activo
+  if (last < 2) return null;
+  var ncol = Math.max(3, sh.getLastColumn());
+  var values = sh.getRange(2, 1, last - 1, ncol).getValues();
   for (var i = 0; i < values.length; i++) {
     var correo = String(values[i][0] || '').toLowerCase().trim();
     if (correo !== emailLower) continue;
     var activo = String(values[i][2] == null ? '' : values[i][2]).toLowerCase().trim();
     var inactivo = (activo === 'no' || activo === 'false' || activo === '0' || activo === 'inactivo');
-    return !inactivo;                          // vacío / sí / true / 1 → autorizado
+    var ambTxt = ncol >= 5 ? values[i][4] : '';
+    return { activo: !inactivo, ambitos: parseAmbitos_(ambTxt) };
   }
-  return false;
+  return null;
 }
 
 /**
@@ -211,6 +273,11 @@ function crearHojaUsuarios() {
   var sh = ss.getSheetByName(SHEET_USUARIOS);
   if (!sh) sh = ss.insertSheet(SHEET_USUARIOS);
   if (sh.getLastRow() === 0) sh.appendRow(USUARIOS_HEADERS);
+  // Repara el encabezado si la hoja viene de una versión sin la columna
+  // "ambitos" (las altas viejas quedan con la celda vacía = ambos ámbitos).
+  if (sh.getLastColumn() < USUARIOS_HEADERS.length) {
+    sh.getRange(1, 1, 1, USUARIOS_HEADERS.length).setValues([USUARIOS_HEADERS]);
+  }
   var existentes = {};
   if (sh.getLastRow() > 1) {
     sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues().forEach(function (r) {
@@ -219,9 +286,9 @@ function crearHojaUsuarios() {
   }
   USUARIOS_INICIALES.forEach(function (correo) {
     var c = String(correo).toLowerCase().trim();
-    if (c && !existentes[c]) sh.appendRow([c, '', 'sí', new Date().toISOString()]);
+    if (c && !existentes[c]) sh.appendRow([c, '', 'sí', new Date().toISOString(), 'ambos']);
   });
-  return 'Pestaña "' + SHEET_USUARIOS + '" lista. Agrega o quita correos ahí.';
+  return 'Pestaña "' + SHEET_USUARIOS + '" lista. Columna "ambitos": laboratorio / empresa / ambos.';
 }
 
 /**
@@ -302,13 +369,26 @@ function readCollection(collection) {
   return out;
 }
 
-function pullAll() {
-  return {
-    solicitudes:  readCollection('solicitud'),
-    ordenes:      readCollection('orden'),
-    evaluaciones: readCollection('evaluacion'),
-    proveedores:  readCollection('proveedor')
+function pullAll(ambitos) {
+  var permite = function (coll, arr) {
+    if (!ambitos || ambitos.length >= AMBITOS.length) return arr; // ve ambos
+    return arr.filter(function (r) { return ambitos.indexOf(inferirAmbito_(coll, r)) >= 0; });
   };
+  return {
+    solicitudes:  permite('solicitud', readCollection('solicitud')),
+    ordenes:      permite('orden', readCollection('orden')),
+    evaluaciones: permite('evaluacion', readCollection('evaluacion')),
+    proveedores:  readCollection('proveedor')     // compartidos entre ámbitos
+  };
+}
+
+/** Devuelve el registro (objeto json) de una colección por su clave, o null. */
+function findRecord_(collection, key) {
+  var arr = readCollection(collection);
+  for (var i = 0; i < arr.length; i++) {
+    if (String(keyOf(collection, arr[i])) === String(key)) return arr[i];
+  }
+  return null;
 }
 
 function keyOf(collection, record) {

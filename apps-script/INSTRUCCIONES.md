@@ -62,8 +62,27 @@ proyecto para que sea fácil de cambiar.
 2. Esto crea la pestaña **`Usuarios`** en la hoja y siembra tu correo
    (`eduwin.ejecutiva@gmail.com`).
 3. Para dar acceso a alguien más, **agrega una fila** en esa pestaña:
-   `correo | nombre | activo | alta`. Con `activo` vacío, `sí`, `true` o `1` queda
-   autorizado; con `no` queda bloqueado sin borrarlo.
+   `correo | nombre | activo | alta | ambitos`. Con `activo` vacío, `sí`, `true`
+   o `1` queda autorizado; con `no` queda bloqueado sin borrarlo.
+
+### Controlar QUÉ puede ver/hacer cada correo (laboratorio o empresa)
+La columna **`ambitos`** decide el alcance de cada persona:
+
+| Valor en `ambitos`     | Puede ver y crear…                                  |
+|------------------------|-----------------------------------------------------|
+| `laboratorio`          | Solo compras del **laboratorio** (series `SC`/`OC`) |
+| `empresa`              | Solo compras de la **empresa** (series `REQ`/`OCB`) |
+| `ambos` (o **vacío**)  | Ambos ámbitos                                        |
+
+- Se controla **desde la hoja**, sin tocar código: escribe el valor en la
+  columna `ambitos` de la fila del correo.
+- El **servidor** filtra lo que cada quien descarga (`pull`) y **rechaza**
+  crear/editar/enviar fuera de su ámbito, aunque alguien modifique la página.
+- En la interfaz, quien tiene un solo ámbito ya **no ve el modal** de elección
+  ni el historial del otro ámbito: todo queda fijado a lo que puede usar.
+- Si ya tenías la pestaña `Usuarios` de una versión anterior, vuelve a ejecutar
+  **`crearHojaUsuarios`** una vez: agrega la columna `ambitos` sin borrar datos
+  (las filas existentes quedan como *ambos* hasta que las cambies).
 
 ## Paso 5.1 — (Opcional) Carga los proveedores confiables en la hoja
 Si quieres los **15 proveedores confiables** (EA-FCPS-05.04) directamente en la
@@ -136,6 +155,9 @@ ni conexión).
   pestaña `Usuarios`, y Google valida el token en cada petición.
 - **¿Cómo doy o quito acceso?** Agrega o edita filas en la pestaña `Usuarios`
   (columna `activo`). No hay que tocar código ni volver a implementar.
+- **¿Cómo separo quién ve laboratorio y quién ve la empresa?** Con la columna
+  `ambitos` de la pestaña `Usuarios`: `laboratorio`, `empresa` o `ambos` (vacío =
+  ambos). El servidor filtra y bloquea lo que no corresponde a cada correo.
 - **¿Y si cambia el equipo?** Cada persona solo necesita su cuenta de Google
   autorizada; no se comparte ninguna clave.
 - **¿Puedo seguir usando el respaldo JSON?** Sí, sigue disponible como copia de
