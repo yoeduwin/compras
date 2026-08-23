@@ -517,8 +517,8 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         .modal-fondo { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 9000;
             display: none; align-items: center; justify-content: center; padding: 1rem; }
         .modal-fondo.abierto { display: flex; }
-        .modal-caja { background: #fff; border-radius: 12px; max-width: 620px; width: 100%;
-            padding: 2rem; box-shadow: 0 18px 50px rgba(0,0,0,0.3); }
+        .modal-caja { background: #fff; border-radius: 12px; max-width: 680px; width: 100%;
+            padding: 2rem; box-shadow: 0 18px 50px rgba(0,0,0,0.3); max-height: 90vh; overflow-y: auto; }
         .modal-caja h3 { color: var(--verde); margin-bottom: 0.5rem; font-size: 1.35rem; }
         .modal-caja p { color: #555; font-size: 0.9rem; margin-bottom: 1.5rem; }
         .modal-opciones { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
@@ -715,7 +715,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 
                 <div class="action-buttons">
                     <button class="btn btn-success" onclick="accionUnica('guardar-solicitud', this, guardarYGenerarSolicitud)">💾 Guardar y Generar PDF</button>
-                    <button class="btn btn-primary" id="btn-mail-sol" onclick="enviarUltimo('sol', this)" disabled>✉️ Enviar por correo</button>
+                    <button class="btn btn-primary" id="btn-mail-sol" onclick="enviarUltimo('sol', this)" title="Disponible al guardar el documento (el correo adjunta el PDF con folio)">✉️ Enviar por correo</button>
                     <button class="btn btn-secondary" onclick="limpiarFormulario('solicitud')">🗑️ Limpiar Formulario</button>
                 </div>
             </div>
@@ -864,7 +864,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 
                 <div class="action-buttons">
                     <button class="btn btn-success" onclick="accionUnica('guardar-orden', this, guardarYGenerarOrden)">💾 Guardar y Generar PDF</button>
-                    <button class="btn btn-primary" id="btn-mail-ord" onclick="enviarUltimo('ord', this)" disabled>✉️ Enviar por correo</button>
+                    <button class="btn btn-primary" id="btn-mail-ord" onclick="enviarUltimo('ord', this)" title="Disponible al guardar el documento (el correo adjunta el PDF con folio)">✉️ Enviar por correo</button>
                     <button class="btn btn-secondary" onclick="limpiarFormulario('orden')">🗑️ Limpiar Formulario</button>
                 </div>
             </div>
@@ -975,7 +975,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
                 <div class="action-buttons">
                     <button class="btn btn-primary" onclick="calcularCalificacion()">🧮 Calcular Calificación</button>
                     <button class="btn btn-success" onclick="accionUnica('guardar-evaluacion', this, guardarYGenerarEvaluacion)">💾 Guardar y Generar PDF</button>
-                    <button class="btn btn-primary" id="btn-mail-eval" onclick="enviarUltimo('eval', this)" disabled>✉️ Enviar por correo</button>
+                    <button class="btn btn-primary" id="btn-mail-eval" onclick="enviarUltimo('eval', this)" title="Disponible al guardar el documento (el correo adjunta el PDF con folio)">✉️ Enviar por correo</button>
                     <button class="btn btn-secondary" onclick="limpiarFormulario('evaluacion')">🗑️ Limpiar Formulario</button>
                 </div>
             </div>
@@ -1120,7 +1120,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     <div id="modal-correo" class="modal-fondo">
         <div class="modal-caja">
             <h3>Enviar por correo</h3>
-            <p id="modal-correo-doc">—</p>
+            <p>Revise el mensaje antes de enviarlo. Puede editar el asunto y el texto; el PDF va adjunto.</p>
             <div class="form-grid">
                 <div class="form-group full-width">
                     <label for="correo-para">Para (separe varios con coma)</label>
@@ -1131,8 +1131,15 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
                     <input type="text" id="correo-cc" placeholder="opcional">
                 </div>
                 <div class="form-group full-width">
-                    <label for="correo-nota">Nota adicional (opcional)</label>
-                    <textarea id="correo-nota" rows="3" placeholder="Se agrega al inicio del mensaje."></textarea>
+                    <label for="correo-asunto">Asunto</label>
+                    <input type="text" id="correo-asunto">
+                </div>
+                <div class="form-group full-width">
+                    <label for="correo-cuerpo">Mensaje</label>
+                    <textarea id="correo-cuerpo" rows="12" style="font-family:inherit; font-size:0.85rem;"></textarea>
+                </div>
+                <div class="form-group full-width">
+                    <span class="hint">📎 Se adjunta: <strong id="correo-adjunto">—</strong></span>
                 </div>
             </div>
             <div class="action-buttons" style="margin-top:1rem; padding-top:1rem;">
@@ -2598,15 +2605,21 @@ Tel: 222-941-7295`
         return listaCorreos(txt).filter(x => !RE_CORREO.test(x));
     }
     let _resolverCorreo = null;
-    // Pide destinatarios. Solicitudes y evaluaciones se proponen a los correos
-    // internos (CONFIG.CORREOS_INTERNOS); una orden, al correo del proveedor.
-    function pedirDestinatarios(tipo, r, asunto) {
-        document.getElementById('modal-correo-doc').textContent = asunto;
+    // Abre el cuadro de envío con el mensaje YA redactado y editable, para que
+    // se pueda revisar antes de mandar nada. Solicitudes y evaluaciones se
+    // proponen a los correos internos; una orden, al correo del proveedor.
+    function pedirEnvio(tipo, r, asunto, cuerpo, adjunto) {
         document.getElementById('correo-para').value = tipo === 'ord'
             ? (r.correo || '')
             : (CONFIG.CORREOS_INTERNOS || '');
-        document.getElementById('correo-cc').value = tipo === 'ord' ? (CONFIG.CORREOS_INTERNOS || '') : (AUTH.email || '');
-        document.getElementById('correo-nota').value = '';
+        // La copia no repite a quien ya está en "Para" (p. ej. uno mismo).
+        const yaEsta = listaCorreos(document.getElementById('correo-para').value).map(x => x.toLowerCase());
+        const copias = listaCorreos(tipo === 'ord' ? (CONFIG.CORREOS_INTERNOS || '') : (AUTH.email || ''))
+            .filter(x => !yaEsta.includes(x.toLowerCase()));
+        document.getElementById('correo-cc').value = copias.join(', ');
+        document.getElementById('correo-asunto').value = asunto;
+        document.getElementById('correo-cuerpo').value = cuerpo;
+        document.getElementById('correo-adjunto').textContent = adjunto;
         document.getElementById('modal-correo').classList.add('abierto');
         document.getElementById('correo-para').focus();
         return new Promise(res => { _resolverCorreo = res; });
@@ -2620,10 +2633,13 @@ Tel: 222-941-7295`
     function confirmarCorreo() {
         const para = document.getElementById('correo-para').value.trim();
         const cc = document.getElementById('correo-cc').value.trim();
+        const asunto = document.getElementById('correo-asunto').value.trim();
+        const cuerpo = document.getElementById('correo-cuerpo').value;
         if (!listaCorreos(para).length) { showToast('Indique al menos un destinatario', 'error'); return; }
         const malos = correosInvalidos(para).concat(correosInvalidos(cc));
         if (malos.length) { showToast('Correo inválido: ' + malos.join(', '), 'error'); return; }
-        cerrarCorreo({ para: listaCorreos(para).join(','), cc: listaCorreos(cc).join(','), nota: document.getElementById('correo-nota').value.trim() });
+        if (!asunto) { showToast('El asunto no puede quedar vacío', 'error'); return; }
+        cerrarCorreo({ para: listaCorreos(para).join(','), cc: listaCorreos(cc).join(','), asunto, cuerpo });
     }
 
     // Lo recién guardado se puede mandar sin ir al historial.
@@ -2631,10 +2647,15 @@ Tel: 222-941-7295`
     function marcarUltimo(tipo, key) {
         ULTIMO[tipo] = key;
         const btn = document.getElementById('btn-mail-' + tipo);
-        if (btn) btn.disabled = false;
+        if (btn) btn.title = 'Enviar ' + key + ' por correo';
     }
     function enviarUltimo(tipo, btn) {
-        if (!ULTIMO[tipo]) { showToast('Guarde primero el documento, o envíelo desde el historial', 'warning'); return; }
+        if (!ULTIMO[tipo]) {
+            // Enviar sin guardar dejaría salir un documento sin folio ni rastro
+            // en la hoja: por eso el orden es guardar y luego enviar.
+            showToast('Primero guarde el documento: el correo adjunta el PDF con el folio que asigna la hoja.', 'warning');
+            return;
+        }
         return enviarPorCorreo(tipo, ULTIMO[tipo], btn);
     }
 
@@ -2643,13 +2664,13 @@ Tel: 222-941-7295`
             const r = buscarRegistro(tipo, key);
             if (!r) { showToast('No se encontró el registro', 'error'); return; }
 
-            let { asunto, cuerpo } = textoCorreo(tipo, r);
-            const destino = await pedirDestinatarios(tipo, r, asunto);
-            if (!destino) return;
-            const { para, cc } = destino;
-            if (destino.nota) cuerpo = destino.nota + '\n\n' + cuerpo;
-
+            // El PDF se arma antes de abrir el cuadro: así se muestra el nombre
+            // exacto del adjunto y el envío no depende de nada posterior.
             const { pdf, nombre } = armarDocumento(tipo, r);
+            const borrador = textoCorreo(tipo, r);
+            const envio = await pedirEnvio(tipo, r, borrador.asunto, borrador.cuerpo, nombre);
+            if (!envio) return;
+            const { para, cc, asunto, cuerpo } = envio;
 
             if (syncOn()) {
                 try {
