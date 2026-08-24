@@ -612,6 +612,20 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         #tour-fab:hover { background: #00460b; }
         @media print { #tour-fab, #tour-catch, #tour-pop { display: none !important; } }
 
+        /* ===== Pestaña Procedimiento ===== */
+        .proc-bar { display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+            flex-wrap: wrap; margin-bottom: 1rem; background: #f8f9fa; border: 1px solid #e9ecef;
+            border-radius: 8px; padding: .7rem 1rem; }
+        .proc-bar .proc-titulo { font-weight: 600; color: #005600; }
+        .proc-bar .proc-cod { font-size: .8rem; color: #666; margin-left: .5rem; }
+        .proc-visor { position: relative; width: 100%; height: calc(100vh - 300px); min-height: 460px;
+            border: 1px solid #e0e0e0; border-radius: 10px; overflow: hidden; background: #f5f5f5; }
+        .proc-visor iframe { width: 100%; height: 100%; border: 0; display: block; }
+        .proc-empty { display: flex; flex-direction: column; align-items: center; justify-content: center;
+            height: 100%; text-align: center; color: #666; padding: 2rem; gap: .9rem; }
+        .proc-empty .pe-icon { font-size: 2.4rem; }
+        .proc-empty input { width: min(520px, 90%); padding: .6rem .8rem; border: 1px solid #ccc;
+            border-radius: 8px; font-size: .9rem; }
     </style>
 </head>
 <body>
@@ -636,6 +650,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
                 <div class="tab" data-tab="evaluacion" onclick="switchTab('evaluacion')">⭐ Evaluación de Proveedor</div>
                 <div class="tab" data-tab="lista" onclick="switchTab('lista')">📑 Lista de Proveedores</div>
                 <div class="tab" data-tab="historial" onclick="switchTab('historial')">🗂️ Historial y Trazabilidad</div>
+                <div class="tab" data-tab="procedimiento" onclick="switchTab('procedimiento')">📖 Procedimiento</div>
             </div>
 
             <!-- ============ SOLICITUD ============ -->
@@ -1131,6 +1146,19 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
                     </div>
                 </div>
             </div>
+
+            <!-- ============ PROCEDIMIENTO ============ -->
+            <div id="tab-procedimiento" class="tab-content">
+                <div class="form-header">
+                    <h2>PROCEDIMIENTO</h2>
+                    <div class="page-info" id="proc-page-info">EA-PDCS-05</div>
+                </div>
+                <div class="proc-bar">
+                    <div><span class="proc-titulo" id="proc-titulo">Procedimiento de Compras</span><span class="proc-cod" id="proc-cod"></span></div>
+                    <a id="proc-abrir" class="btn btn-secondary btn-sm" target="_blank" rel="noopener" style="display:none;">↗ Abrir en pestaña nueva</a>
+                </div>
+                <div id="proc-visor" class="proc-visor"><!-- visor inyectado por JS --></div>
+            </div>
         </div>
     </div>
 
@@ -1569,6 +1597,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         if (tabName === 'orden') poblarSolicitudesRel();
         if (tabName === 'evaluacion') poblarOrdenesRel();
         if (tabName === 'historial') renderHistorial();
+        if (tabName === 'procedimiento') renderProcedimiento();
         // El ámbito se pregunta ANTES de capturar: define la serie del folio.
         if (tabName === 'solicitud' || tabName === 'orden' || tabName === 'evaluacion') asegurarAmbito(tabName);
     }
@@ -3189,6 +3218,82 @@ Tel: 222-941-7295`
             setTimeout(() => maybeAuto("solicitud"), 900);
         });
         window.eaTour = { start: start, end: end, reset: function () { try { Object.keys(TOUR).forEach(k => localStorage.removeItem(seenKey(k))); localStorage.removeItem(LS_OFF); } catch (e) {} } };
+    })();
+    </script>
+
+
+    <!-- ===== Pestaña Procedimiento: visor de PDF por link ===== -->
+    <script>
+    (function () {
+        // ====== CONFIGURA AQUÍ EL LINK DEL PROCEDIMIENTO ======
+        // Pega el enlace del PDF (Google Drive o URL directa .pdf). Ejemplo Drive:
+        //   https://drive.google.com/file/d/XXXXXXXXXXXX/view?usp=sharing
+        const PROCEDIMIENTO = {
+            titulo: "Procedimiento de Compras y Evaluación de Proveedores",
+            codigo: "EA-PDCS-05",
+            url: ""   // <-- deja "" para permitir configurarlo dentro de la app
+        };
+        const LS_URL = "eaProcedimientoUrl";
+        const q = s => document.querySelector(s);
+
+        function toEmbedUrl(u) {
+            if (!u) return "";
+            u = u.trim();
+            let m = u.match(/drive\.google\.com\/file\/d\/([^/?#]+)/);
+            if (m) return "https://drive.google.com/file/d/" + m[1] + "/preview";
+            m = u.match(/[?&]id=([^&#]+)/);
+            if (m && /drive\.google\.com/.test(u)) return "https://drive.google.com/file/d/" + m[1] + "/preview";
+            // Google Docs "publicado" u otras URLs: se usan tal cual
+            return u;
+        }
+        function urlConfigurada() {
+            if (PROCEDIMIENTO.url) return PROCEDIMIENTO.url;
+            try { return localStorage.getItem(LS_URL) || ""; } catch (e) { return ""; }
+        }
+        function guardarUrl(u) { try { localStorage.setItem(LS_URL, u); } catch (e) {} }
+
+        window.renderProcedimiento = function () {
+            const cont = q("#proc-visor"); if (!cont) return;
+            const tit = q("#proc-titulo"); if (tit) tit.textContent = PROCEDIMIENTO.titulo;
+            const cod = q("#proc-cod"); if (cod) cod.textContent = PROCEDIMIENTO.codigo ? "· " + PROCEDIMIENTO.codigo : "";
+            const pinfo = q("#proc-page-info"); if (pinfo && PROCEDIMIENTO.codigo) pinfo.textContent = PROCEDIMIENTO.codigo;
+
+            const raw = urlConfigurada();
+            const abrir = q("#proc-abrir");
+            if (!raw) {
+                if (abrir) abrir.style.display = "none";
+                cont.dataset.loaded = "";
+                cont.innerHTML =
+                    '<div class="proc-empty">' +
+                        '<div class="pe-icon">📄</div>' +
+                        '<div><b>Aún no se ha configurado el procedimiento.</b><br>' +
+                        'Pega el enlace del PDF (Google Drive o URL directa) para consultarlo aquí.</div>' +
+                        '<input id="proc-input" type="url" placeholder="https://drive.google.com/file/d/.../view">' +
+                        '<button class="btn btn-success btn-sm" id="proc-guardar">Guardar y ver</button>' +
+                    '</div>';
+                const btn = q("#proc-guardar");
+                if (btn) btn.onclick = function () {
+                    const v = (q("#proc-input").value || "").trim();
+                    if (!v) return;
+                    guardarUrl(v); cont.dataset.loaded = ""; renderProcedimiento();
+                };
+                return;
+            }
+            const embed = toEmbedUrl(raw);
+            if (abrir) { abrir.href = raw; abrir.style.display = ""; }
+            // Evitar recargar el iframe si ya está el mismo documento
+            if (cont.dataset.loaded === embed) return;
+            cont.dataset.loaded = embed;
+            const ifr = document.createElement("iframe");
+            ifr.src = embed;
+            ifr.setAttribute("allow", "autoplay");
+            ifr.setAttribute("loading", "lazy");
+            ifr.title = PROCEDIMIENTO.titulo;
+            cont.innerHTML = "";
+            cont.appendChild(ifr);
+        };
+        // Utilidad opcional para fijar el link por consola: eaProc.set("https://...")
+        window.eaProc = { set: function (u) { guardarUrl(u); const c = q("#proc-visor"); if (c) c.dataset.loaded = ""; if (document.getElementById("tab-procedimiento").classList.contains("active")) renderProcedimiento(); }, clear: function () { try { localStorage.removeItem(LS_URL); } catch (e) {} } };
     })();
     </script>
 
